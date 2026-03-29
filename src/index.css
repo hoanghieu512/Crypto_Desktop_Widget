@@ -28,3 +28,30 @@
     -webkit-app-region: no-drag;
   }
 }
+
+/* Scrollbars: overlay-like — ẩn mặc định, hé hiện khi hover / focus / active (Chromium & Electron) */
+/* Firefox: không có pseudo tương đương → ẩn hoàn toàn */
+* {
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+  transition: background 0.2s ease;
+}
+
+*:hover::-webkit-scrollbar-thumb,
+*:active::-webkit-scrollbar-thumb,
+*:focus::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+}
+

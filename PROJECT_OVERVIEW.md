@@ -47,10 +47,16 @@ Gom **nhiều nguồn giá** (WebSocket + REST) vào **một cửa sổ nhỏ**,
 | **Domestic gold rows** — SJC / DOJI / BTMC codes; buy/sell/Δ stacked under each price. | **Vàng trong nước** — SJC / DOJI / BTMC; mua/bán/Δ ngay dưới giá. |
 | **Formatting** — `FormatProvider`, `formatPrice` / `useFormatPrice`. | **Định dạng số** — `FormatProvider` + `useFormatPrice`. |
 | **UTC sessions** — Asia / EU / US bar (`SessionBar`, `getSession`). | **Phiên UTC** — thanh Asia / EU / US. |
+| **Futures Simulator** — floating panel from **Futures** rows: snap to right (8px gap), optional drag + edge snap (~20px), backdrop + **ESC** / outside click to close; PnL / TP / SL / R:R / liq (approx.); **price ladder** (% vs mark) fills Entry / TP / SL. | **Futures Simulator** — panel nổi từ dòng Futures: snap phải, kéo/snap cạnh, đóng ESC/click nền; thang giá điền Entry/TP/SL. |
+| **Scroll UX** — `index.css`: WebKit/Firefox scrollbar overlay-style (dim until interaction). | **Thanh cuộn** — ẩn / hé hiện khi tương tác (Chromium/Electron; Firefox ẩn). |
+| **Metal market utility** — `getMetalMarketStatus` (OTC-style weekend gap Fri 22:00–Sun 22:00 UTC); ready for gold/silver status UI. | **Helper phiên kim loại** — `getMetalMarketStatus` (model OTC cuối tuần UTC); sẵn cho UI Vàng/Bạc. |
 | **Electron** — always-on-top, drag regions. | **Electron** — luôn trên cùng, vùng kéo cửa sổ. |
 
 **EN — Not in repo yet:** push alerts, automated buy/sell signals, or advanced analytics (future work).  
 **VI — Chưa có:** alert đẩy, tín hiệu mua/bán tự động, analytics nâng cao (có thể mở rộng sau).
+
+**EN — Disclaimer:** Futures Simulator is a **toy model** (not exchange-grade margins / fees).  
+**VI — Lưu ý:** Futures Simulator chỉ **mô phỏng**, không thay lệnh hay margin thật trên sàn.
 
 ---
 
@@ -91,7 +97,7 @@ flowchart TB
 ```mermaid
 flowchart LR
   APP["App.tsx\nFormatProvider"]
-  APP --> C["Crypto\nWatchlistDashboard"]
+  APP --> C["Crypto\nWatchlistDashboard\n+ Futures overlay"]
   APP --> G["Gold\nPreciousMetalsPanel"]
   APP --> S["Silver\nSilverPanel"]
 
@@ -101,8 +107,8 @@ flowchart LR
 
 ### 4.3 EN / VI — Module notes
 
-- **Crypto:** WebSocket → `useRealtimePrice` → price map `(symbol, market)` → `WatchlistDashboard` / `WatchlistRow`.  
-  **Crypto:** WebSocket → `useRealtimePrice` → map giá `(symbol, market)` → `WatchlistDashboard` / `WatchlistRow`.
+- **Crypto:** WebSocket → `useRealtimePrice` → price map `(symbol, market)` → `WatchlistDashboard` / `WatchlistRow`; **Futures** rows open `FuturesSimulatorPanel` (overlay) with mark-driven ladder + `useFuturesSimulator`.  
+  **Crypto:** WebSocket → `useRealtimePrice` → `WatchlistDashboard` / `WatchlistRow`; dòng **Futures** mở simulator nổi + hook tính PnL.
 
 - **Gold / Silver:** `fetchGoldWithFallback`, `fetchUsdVnd`, (`fetchSilverWorldWithFallback` for silver) → `useGoldPrice` / `useSilverPrice` / `useVnMetalPrices` → dashboards.  
   **Vàng / Bạc:** `fetchGoldWithFallback`, `fetchUsdVnd`, (`fetchSilverWorldWithFallback`) → các hook tương ứng → dashboard.
@@ -121,7 +127,14 @@ flowchart LR
 | `src/hooks/useVnMetalPrices.ts` | Domestic gold table (many codes) | Bảng vàng nội địa (nhiều mã) |
 | `src/api/fetch*.ts` | HTTP clients + fallbacks / cache | Client HTTP + fallback / cache |
 | `src/components/*Dashboard*.tsx` | Tab UIs | Giao diện từng tab |
+| `src/components/WatchlistDashboard.tsx` | Crypto watchlist, DnD, futures overlay shell | Watchlist + overlay simulator |
 | `src/components/AssetCard.tsx` | Shared card layout | Layout thẻ dùng chung |
+| `src/components/FuturesSimulatorPanel.tsx` | Floating futures PnL UI + price ladder | Panel simulator + thang giá |
+| `src/hooks/useFuturesSimulator.ts` | Entry/leverage/size/TP/SL state + PnL math | State + công thức PnL |
+| `src/utils/futuresPriceLadder.ts` | Adaptive tick ladder around mark | Bậc giá quanh mark |
+| `src/utils/metalMarketStatus.ts` | OTC-style open / closed / opening-soon (weekend UTC) | Trạng thái phiên spot kim loại (helper) |
+| `src/utils/tradingSession.ts` | Crypto UTC session bands (Asia/EU/US) | Phiên crypto theo giờ UTC |
+| `src/index.css` | Tailwind import, drag regions, scrollbar overlay utilities | CSS global + scrollbar |
 | `src/providers/FormatProvider.tsx` | Display format context | Context định dạng hiển thị |
 
 ---
@@ -183,6 +196,20 @@ flowchart TD
   W --> UI["WatchlistDashboard"]
 ```
 
+### 6.4 Mermaid — Futures Simulator overlay | Simulator nổi
+
+```mermaid
+flowchart LR
+  R["WatchlistRow\nFutures · Mark"]
+  R -->|click card| O["Overlay\nbackdrop + snap panel"]
+  O --> P["FuturesSimulatorPanel"]
+  M["useRealtimePrice\nmark price"] --> P
+  P --> H["useFuturesSimulator\nPnL / ladder fill"]
+```
+
+**EN:** Click on a **Futures** row opens the overlay; panel consumes **futures mark** for live mark + ladder centering; user chooses Entry / TP / SL target then clicks ladder rungs.  
+**VI:** Chạm dòng **Futures** mở overlay; panel dùng **giá mark** cho mark realtime và thang giá; chọn ô Entry/TP/SL rồi click mức giá.
+
 ---
 
 ## 7. Known Issues / Constraints | Hạn chế đã biết
@@ -194,6 +221,8 @@ flowchart TD
 | WebSocket **reconnect** cycles may cause brief gaps; status shown in UI. | **Reconnect** WS có thể tạo khoảng trống ngắn; UI hiển thị trạng thái. |
 | **No server DB** — clearing storage or new device loses watchlist unless export is added later. | **Không DB** — xóa storage hoặc đổi máy mất watchlist (trừ khi sau này có export). |
 | **VN silver** depends on listing feed containing a silver row. | **Bạc VN** phụ thuộc bảng niêm yết có dòng bạc. |
+| **Futures Simulator** uses simplified formulas / liq approximation; not a substitute for exchange risk tools. | **Simulator** dùng công thức đơn giản; không thay công cụ quản trị rủi ro trên sàn. |
+| **`getMetalMarketStatus`** models generic OTC metal hours; broker feeds may differ. | **`getMetalMarketStatus`** là model OTC tổng quát; giờ thật có thể khác từng broker. |
 
 ---
 

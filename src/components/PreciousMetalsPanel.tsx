@@ -110,7 +110,7 @@ export function PreciousMetalsPanel({ active }: Props) {
                           Niêm yết
                         </p>
                         <div className={goldBidAskGridClass}>
-                          <span className="text-slate-500 self-start pt-0.5">Mua</span>
+                          <span className="self-start pt-0.5 text-left text-slate-500">Mua</span>
                           <div className="flex flex-col items-end gap-0.5 text-right leading-tight">
                             <span className="text-emerald-400">{fmtLevel(q.buy)}</span>
                             <span
@@ -120,7 +120,7 @@ export function PreciousMetalsPanel({ active }: Props) {
                               Δ {fmtLevel(q.changeBuy)}
                             </span>
                           </div>
-                          <span className="text-slate-500 self-start pt-0.5">Bán</span>
+                          <span className="self-start pt-0.5 text-left text-slate-500">Bán</span>
                           <div className="flex flex-col items-end gap-0.5 text-right leading-tight">
                             <span className="text-base font-semibold text-rose-400">
                               {fmtLevel(q.sell)}

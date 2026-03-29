@@ -17,7 +17,16 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import type { DraggableAttributes } from '@dnd-kit/core'
 import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities'
-import { memo, useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react'
 import {
   priceMapKey,
   useRealtimePrice,
@@ -29,6 +38,7 @@ import {
 import { useFormat } from '../providers/FormatProvider'
 import { normalizeCryptoPairInput } from '../utils/cryptoPair'
 import { AssetCard } from './AssetCard'
+import { FuturesSimulatorPanel } from './FuturesSimulatorPanel'
 import { SessionBar } from './SessionBar'
 
 const STORAGE_KEY = 'crypto-watchlist-v2'
@@ -210,6 +220,70 @@ function DragHandle({
   )
 }
 
+const FLOAT_GAP_PX = 8
+const FLOAT_SNAP_THRESHOLD_PX = 20
+const FLOAT_PANEL_MAX_W = 320
+const FLOAT_EST_H = 440
+
+type FuturesSimulatorSession = {
+  itemId: string
+  symbolUpper: string
+}
+
+function snapFloatPanel(
+  left: number,
+  top: number,
+  panelW: number,
+  panelH: number,
+  rootW: number,
+  rootH: number,
+): { left: number; top: number } {
+  const G = FLOAT_GAP_PX
+  const T = FLOAT_SNAP_THRESHOLD_PX
+  const snapRight = rootW - panelW - G
+  const snapLeft = G
+  const snapTop = G
+  const snapBottom = rootH - panelH - G
+  const snapMidY = (rootH - panelH) / 2
+
+  let l = left
+  let t = top
+
+  if (Math.abs(l - snapRight) <= T) l = snapRight
+  else if (Math.abs(l - snapLeft) <= T) l = snapLeft
+
+  if (Math.abs(t - snapTop) <= T) t = snapTop
+  else if (Math.abs(t - snapBottom) <= T) t = snapBottom
+  else if (Math.abs(t - snapMidY) <= T) t = snapMidY
+
+  l = Math.max(G, Math.min(l, rootW - panelW - G))
+  t = Math.max(G, Math.min(t, rootH - panelH - G))
+  return { left: l, top: t }
+}
+
+function layoutSnapRight(rootW: number, rootH: number, panelW: number, panelH: number) {
+  const G = FLOAT_GAP_PX
+  const left = rootW - panelW - G
+  const top = Math.max(G, Math.min((rootH - panelH) / 2, rootH - panelH - G))
+  return { left, top, width: panelW }
+}
+
+function clampFloatPos(
+  left: number,
+  top: number,
+  panelW: number,
+  panelH: number,
+  rootW: number,
+  rootH: number,
+) {
+  const G = FLOAT_GAP_PX
+  return {
+    left: Math.max(G, Math.min(left, rootW - panelW - G)),
+    top: Math.max(G, Math.min(top, rootH - panelH - G)),
+    width: panelW,
+  }
+}
+
 type RowProps = {
   item: WatchItem
   market: Market
@@ -219,6 +293,7 @@ type RowProps = {
   onRemove: (id: string) => void
   onToggleRowMarket: (id: string) => void
   dragDisabled?: boolean
+  onOpenFuturesSimulator?: (detail: { itemId: string; symbolUpper: string }) => void
 }
 
 const WatchlistRow = memo(function WatchlistRow({
@@ -230,6 +305,7 @@ const WatchlistRow = memo(function WatchlistRow({
   onRemove,
   onToggleRowMarket,
   dragDisabled,
+  onOpenFuturesSimulator,
 }: RowProps) {
   const {
     attributes,
@@ -340,40 +416,71 @@ const WatchlistRow = memo(function WatchlistRow({
     !Number.isFinite(fr) ? 'text-slate-500' : fr >= 0 ? 'text-emerald-400' : 'text-rose-400'
   const markN = Number(f.markPrice)
 
+  const futuresCard = (
+    <AssetCard
+      type="crypto"
+      className={`min-w-0 flex-1 ${draggingCls}`}
+      title={display}
+      badge="Futures · Mark"
+      badgeClassName={badgeClassName}
+      action={actions}
+      priceLabel="Mark price"
+      price={Number.isFinite(markN) ? markN : '—'}
+    >
+      {hint ? <p className="text-[11px] text-violet-300/90">{hint}</p> : null}
+      <div className="grid gap-2 sm:grid-cols-2">
+        {f.indexPrice ? (
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Index</p>
+            <CryptoAmount raw={f.indexPrice} className="font-mono text-sm text-slate-300" />
+          </div>
+        ) : null}
+        <div className={f.indexPrice ? 'sm:text-right' : ''}>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Funding / 8h</p>
+          <p className={`font-mono text-sm ${frClass}`}>{formatFundingRate(f.fundingRate)}</p>
+          <p className="mt-2 text-xs font-medium uppercase tracking-wide text-slate-500">Funding tiếp theo</p>
+          <p className="text-xs text-slate-400">
+            {new Date(f.nextFundingTime).toLocaleString('vi-VN')}
+          </p>
+          <p className="mt-0.5 text-[11px] text-slate-400">
+            Còn lại: <FundingEta ts={f.nextFundingTime} />
+          </p>
+        </div>
+      </div>
+    </AssetCard>
+  )
+
   return (
     <li ref={setNodeRef} style={sortableStyle} className="flex gap-2">
       {handle}
-      <AssetCard
-        type="crypto"
-        className={`min-w-0 flex-1 ${draggingCls}`}
-        title={display}
-        badge="Futures · Mark"
-        badgeClassName={badgeClassName}
-        action={actions}
-        priceLabel="Mark price"
-        price={Number.isFinite(markN) ? markN : '—'}
-      >
-        {hint ? <p className="text-[11px] text-violet-300/90">{hint}</p> : null}
-        <div className="grid gap-2 sm:grid-cols-2">
-          {f.indexPrice ? (
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Index</p>
-              <CryptoAmount raw={f.indexPrice} className="font-mono text-sm text-slate-300" />
-            </div>
-          ) : null}
-          <div className={f.indexPrice ? 'sm:text-right' : ''}>
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Funding / 8h</p>
-            <p className={`font-mono text-sm ${frClass}`}>{formatFundingRate(f.fundingRate)}</p>
-            <p className="mt-2 text-xs font-medium uppercase tracking-wide text-slate-500">Funding tiếp theo</p>
-            <p className="text-xs text-slate-400">
-              {new Date(f.nextFundingTime).toLocaleString('vi-VN')}
-            </p>
-            <p className="mt-0.5 text-[11px] text-slate-400">
-              Còn lại: <FundingEta ts={f.nextFundingTime} />
-            </p>
-          </div>
+      {onOpenFuturesSimulator ? (
+        <div
+          role="button"
+          tabIndex={0}
+          className="min-w-0 flex-1 rounded-2xl outline-none ring-amber-500/0 transition-[box-shadow] hover:ring-1 hover:ring-amber-500/25 focus-visible:ring-2 focus-visible:ring-amber-500/40"
+          title="Mở Futures Simulator"
+          onClick={(e) => {
+            const el = e.target as HTMLElement
+            if (el.closest('button')) return
+            onOpenFuturesSimulator({
+              itemId: item.id,
+              symbolUpper: display,
+            })
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return
+            e.preventDefault()
+            onOpenFuturesSimulator({
+              itemId: item.id,
+              symbolUpper: display,
+            })
+          }}
+        >
+          {futuresCard}
         </div>
-      </AssetCard>
+      ) : (
+        futuresCard
+      )}
     </li>
   )
 })
@@ -498,6 +605,220 @@ export function WatchlistDashboard() {
 
   const errTitle = [spot.lastError, futures.lastError].filter(Boolean).join(' | ')
 
+  const rootRef = useRef<HTMLDivElement>(null)
+  const simulatorCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const [simulatorSession, setSimulatorSession] = useState<FuturesSimulatorSession | null>(null)
+  const [panelEnter, setPanelEnter] = useState(false)
+  const [floatPanelPos, setFloatPanelPos] = useState({ left: 0, top: 0, width: FLOAT_PANEL_MAX_W })
+  const [floatDragging, setFloatDragging] = useState(false)
+  const floatPreferSnapRightRef = useRef(true)
+  const floatPanelBodyRef = useRef<HTMLDivElement>(null)
+  const floatDragHandleRef = useRef<HTMLDivElement>(null)
+  const floatDragRef = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    originLeft: number
+    originTop: number
+  } | null>(null)
+
+  /** Đồng bộ với simulatorSession — dùng cho aria / props */
+  const isSimulatorOpen = simulatorSession != null
+  const selectedSymbol = simulatorSession?.symbolUpper ?? null
+
+  const closeFuturesSimulator = useCallback(() => {
+    setPanelEnter(false)
+    if (simulatorCloseTimerRef.current != null) {
+      clearTimeout(simulatorCloseTimerRef.current)
+      simulatorCloseTimerRef.current = null
+    }
+    simulatorCloseTimerRef.current = window.setTimeout(() => {
+      simulatorCloseTimerRef.current = null
+      setSimulatorSession(null)
+    }, 150)
+  }, [])
+
+  const openFuturesSimulator = useCallback((detail: { itemId: string; symbolUpper: string }) => {
+    if (simulatorCloseTimerRef.current != null) {
+      clearTimeout(simulatorCloseTimerRef.current)
+      simulatorCloseTimerRef.current = null
+    }
+    floatPreferSnapRightRef.current = true
+    setSimulatorSession({
+      itemId: detail.itemId,
+      symbolUpper: detail.symbolUpper,
+    })
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (simulatorCloseTimerRef.current != null) {
+        clearTimeout(simulatorCloseTimerRef.current)
+        simulatorCloseTimerRef.current = null
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isSimulatorOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeFuturesSimulator()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isSimulatorOpen, closeFuturesSimulator])
+
+  useEffect(() => {
+    if (!simulatorSession) return
+    let rafOpen: number | undefined
+    const rafReset = requestAnimationFrame(() => {
+      setPanelEnter(false)
+      rafOpen = requestAnimationFrame(() => setPanelEnter(true))
+    })
+    return () => {
+      cancelAnimationFrame(rafReset)
+      if (rafOpen != null) cancelAnimationFrame(rafOpen)
+    }
+  }, [simulatorSession])
+
+  const simResolved = useMemo(() => {
+    if (!simulatorSession) {
+      return { symLower: '', pk: '', mark: 0 as number, symbolKey: '' }
+    }
+    const item = items.find((i) => i.id === simulatorSession.itemId)
+    const symLower = item
+      ? normalizeCryptoPairInput(item.symbol) || item.symbol.trim().toLowerCase()
+      : ''
+    const pk = priceMapKey(symLower, 'futures')
+    const fe = prices[pk]
+    const mark =
+      fe?.market === 'futures' ? parseFloat(fe.snapshot.markPrice) : Number.NaN
+    return {
+      symLower,
+      pk,
+      mark: Number.isFinite(mark) ? mark : 0,
+      symbolKey: `${simulatorSession.itemId}|${pk}`,
+    }
+  }, [simulatorSession, items, prices])
+
+  const floatPanelPosRef = useRef(floatPanelPos)
+
+  useLayoutEffect(() => {
+    floatPanelPosRef.current = floatPanelPos
+  }, [floatPanelPos])
+
+  const applyFloatSnapLayout = useCallback(() => {
+    const rootEl = rootRef.current
+    const bodyEl = floatPanelBodyRef.current
+    if (!rootEl) return
+    const root = rootEl.getBoundingClientRect()
+    const panelW = Math.min(FLOAT_PANEL_MAX_W, Math.max(0, root.width - FLOAT_GAP_PX * 2))
+    const panelH = bodyEl?.offsetHeight ?? FLOAT_EST_H
+    if (floatPreferSnapRightRef.current && !floatDragging) {
+      setFloatPanelPos(layoutSnapRight(root.width, root.height, panelW, panelH))
+    } else {
+      setFloatPanelPos((p) =>
+        clampFloatPos(p.left, p.top, panelW, panelH, root.width, root.height),
+      )
+    }
+  }, [floatDragging])
+
+  useLayoutEffect(() => {
+    if (!simulatorSession || !rootRef.current) return
+    applyFloatSnapLayout()
+    window.addEventListener('resize', applyFloatSnapLayout)
+    let ro: ResizeObserver | null = null
+    const tryObserve = () => {
+      const body = floatPanelBodyRef.current
+      if (!body || ro || typeof ResizeObserver === 'undefined') return
+      ro = new ResizeObserver(() => applyFloatSnapLayout())
+      ro.observe(body)
+    }
+    tryObserve()
+    const raf = requestAnimationFrame(tryObserve)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('resize', applyFloatSnapLayout)
+      ro?.disconnect()
+    }
+  }, [simulatorSession, floatDragging, panelEnter, simResolved.mark, applyFloatSnapLayout])
+
+  const endFloatDrag = useCallback(() => {
+    const d = floatDragRef.current
+    floatDragRef.current = null
+    setFloatDragging(false)
+    if (d?.pointerId != null && floatDragHandleRef.current) {
+      try {
+        floatDragHandleRef.current.releasePointerCapture(d.pointerId)
+      } catch {
+        /* already released */
+      }
+    }
+    const rootEl = rootRef.current
+    const bodyEl = floatPanelBodyRef.current
+    if (!rootEl) return
+    const root = rootEl.getBoundingClientRect()
+    const panelW = Math.min(FLOAT_PANEL_MAX_W, Math.max(0, root.width - FLOAT_GAP_PX * 2))
+    const panelH = bodyEl?.offsetHeight ?? FLOAT_EST_H
+    setFloatPanelPos((p) => {
+      const snapped = snapFloatPanel(p.left, p.top, panelW, panelH, root.width, root.height)
+      return { left: snapped.left, top: snapped.top, width: panelW }
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!floatDragging) return
+    const onMove = (e: PointerEvent) => {
+      const d = floatDragRef.current
+      if (!d || e.pointerId !== d.pointerId) return
+      const rootEl = rootRef.current
+      if (!rootEl) return
+      const root = rootEl.getBoundingClientRect()
+      const panelW = Math.min(FLOAT_PANEL_MAX_W, Math.max(0, root.width - FLOAT_GAP_PX * 2))
+      const panelH = floatPanelBodyRef.current?.offsetHeight ?? FLOAT_EST_H
+      const nl = d.originLeft + (e.clientX - d.startX)
+      const nt = d.originTop + (e.clientY - d.startY)
+      setFloatPanelPos(
+        clampFloatPos(nl, nt, panelW, panelH, root.width, root.height),
+      )
+    }
+    const onUp = (e: PointerEvent) => {
+      const d = floatDragRef.current
+      if (!d || e.pointerId !== d.pointerId) return
+      endFloatDrag()
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
+  }, [floatDragging, endFloatDrag])
+
+  const onFloatDragStart = (e: React.PointerEvent) => {
+    if (e.button !== 0) return
+    e.stopPropagation()
+    e.preventDefault()
+    floatPreferSnapRightRef.current = false
+    const pr = floatPanelPosRef.current
+    floatDragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      originLeft: pr.left,
+      originTop: pr.top,
+    }
+    setFloatDragging(true)
+    try {
+      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    } catch {
+      /* ignore */
+    }
+  }
+
   const statusToneClass = (() => {
     const spotOk = spot.streams.length === 0 || spot.status === 'open'
     const futOk = futures.streams.length === 0 || futures.status === 'open'
@@ -532,8 +853,15 @@ export function WatchlistDashboard() {
   )
 
   return (
-    <div className="app-no-drag flex h-full min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden px-3 pb-4 pt-1">
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+    <div
+      ref={rootRef}
+      className="app-no-drag relative flex h-full min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden px-3 pb-4 pt-1"
+    >
+      <div
+        className={`flex min-h-0 flex-1 flex-col gap-2 overscroll-contain ${
+          isSimulatorOpen ? 'overflow-hidden' : 'overflow-y-auto'
+        }`}
+      >
         <AssetCard
           type="crypto"
           title="Crypto"
@@ -672,6 +1000,9 @@ export function WatchlistDashboard() {
                     onRemove={remove}
                     onToggleRowMarket={toggleRowMarket}
                     dragDisabled={loading}
+                    onOpenFuturesSimulator={
+                      m === 'futures' ? openFuturesSimulator : undefined
+                    }
                   />
                 )
               })
@@ -680,6 +1011,56 @@ export function WatchlistDashboard() {
         </SortableContext>
       </DndContext>
       </div>
+
+      {isSimulatorOpen && simulatorSession ? (
+        <div
+          className="pointer-events-auto absolute inset-0 z-[200] overflow-hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Futures Simulator${selectedSymbol ? ` · ${selectedSymbol}` : ''}`}
+        >
+          <button
+            type="button"
+            className={`absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity duration-200 ease-out ${
+              panelEnter ? 'opacity-100' : 'opacity-0'
+            }`}
+            aria-label="Đóng simulator"
+            onClick={closeFuturesSimulator}
+          />
+          <div
+            ref={floatPanelBodyRef}
+            className={`absolute z-[1] flex max-h-[calc(100%-16px)] flex-col overflow-hidden overscroll-contain rounded-2xl border border-white/[0.08] bg-slate-950/98 shadow-2xl shadow-black/60 ring-1 ring-black/40 ${
+              floatDragging ? '' : 'transition-[transform,opacity] duration-200 ease-out'
+            }`}
+            style={{
+              left: floatPanelPos.left,
+              top: floatPanelPos.top,
+              width: floatPanelPos.width,
+              opacity: panelEnter ? 1 : 0,
+              transform: `translate3d(${panelEnter ? 0 : 14}px, 0, 0)`,
+            }}
+          >
+            <div
+              ref={floatDragHandleRef}
+              className="app-no-drag flex shrink-0 cursor-grab touch-none items-center justify-center gap-1 rounded-t-2xl border-b border-white/5 bg-slate-900/90 py-2 active:cursor-grabbing"
+              onPointerDown={onFloatDragStart}
+              role="toolbar"
+              aria-label="Kéo panel — thả gần cạnh để snap"
+            >
+              <span className="h-1 w-9 rounded-full bg-slate-600/90" aria-hidden />
+            </div>
+            <div className="min-h-0 min-w-0 overflow-hidden">
+              <FuturesSimulatorPanel
+                key={simulatorSession.itemId}
+                symbol={simulatorSession.symbolUpper}
+                currentPrice={simResolved.mark}
+                symbolKey={simResolved.symbolKey}
+                className="max-w-none rounded-t-none rounded-b-2xl shadow-none ring-0"
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

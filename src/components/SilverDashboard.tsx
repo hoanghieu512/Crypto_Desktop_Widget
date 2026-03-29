@@ -173,7 +173,7 @@ export function SilverDashboard({ active }: Props) {
             {spreadReady && vnBuyVndPerLuong != null && vnSellVndPerLuong != null ? (
               <div className={metalBidAskTableGridClass}>
                 <div />
-                <div className="text-slate-500">Mua</div>
+                <div className="text-right text-slate-500">Mua</div>
                 <div className="text-right text-slate-500">Bán</div>
 
                 <div className="text-slate-400">TG</div>

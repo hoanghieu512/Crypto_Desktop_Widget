@@ -8,6 +8,8 @@ Widget desktop và web theo dõi **giá crypto** (Binance realtime), **vàng** v
 
 Ứng dụng **React + Vite**, có thể chạy trong trình duyệt hoặc đóng gói **Electron** (cửa sổ nhỏ, always-on-top). Dữ liệu crypto qua **WebSocket** Binance; vàng/bạc qua **REST** và polling định kỳ. Watchlist crypto lưu **localStorage**, không cần backend riêng.
 
+Thanh cuộn trong app dùng kiểu **overlay** (ẩn mặc định, hé hiện khi hover) để giao diện gọn, đặc biệt trên Electron.
+
 Chi tiết kiến trúc, luồng dữ liệu và hạn chế: xem **[PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md)**.
 
 ---
@@ -15,6 +17,7 @@ Chi tiết kiến trúc, luồng dữ liệu và hạn chế: xem **[PROJECT_OVE
 ## Features
 
 - **Crypto** — watchlist cặp USDT, Spot / Futures (mark), sắp xếp kéo thả, phiên giao dịch UTC (Asia / EU / US).
+- **Futures Simulator** — mở từ dòng **Futures** trong watchlist: panel nổi (snap mép phải, có thể kéo + snap cạnh), làm mờ nền, đóng bằng **ESC** hoặc click ra ngoài. Tính PnL / TP–SL / R:R / liq gần đúng; **thang giá** (price ladder) click để điền Entry / TP / SL.
 - **Vàng** — XAU quy đổi VND, SJC/VN, so sánh với thế giới; bảng niêm yết SJC / DOJI / BTMC.
 - **Bạc** — XAG thế giới + niêm yết VN (khi có dữ liệu).
 - **Định dạng** — hiển thị số theo `FormatProvider` (VND/USD, v.v.).
