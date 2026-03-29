@@ -1,73 +1,99 @@
-# React + TypeScript + Vite
+# Crypto Desktop Widget
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Widget desktop và web theo dõi **giá crypto** (Binance realtime), **vàng** và **bạc** (quy đổi + niêm yết VN), gọn trên một cửa sổ.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Overview
 
-## React Compiler
+Ứng dụng **React + Vite**, có thể chạy trong trình duyệt hoặc đóng gói **Electron** (cửa sổ nhỏ, always-on-top). Dữ liệu crypto qua **WebSocket** Binance; vàng/bạc qua **REST** và polling định kỳ. Watchlist crypto lưu **localStorage**, không cần backend riêng.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Chi tiết kiến trúc, luồng dữ liệu và hạn chế: xem **[PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md)**.
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Features
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- **Crypto** — watchlist cặp USDT, Spot / Futures (mark), sắp xếp kéo thả, phiên giao dịch UTC (Asia / EU / US).
+- **Vàng** — XAU quy đổi VND, SJC/VN, so sánh với thế giới; bảng niêm yết SJC / DOJI / BTMC.
+- **Bạc** — XAG thế giới + niêm yết VN (khi có dữ liệu).
+- **Định dạng** — hiển thị số theo `FormatProvider` (VND/USD, v.v.).
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+---
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Tech stack
+
+| Lớp | Công nghệ |
+|-----|-----------|
+| UI | React 19, TypeScript, Tailwind CSS 4 |
+| Build | Vite 8 |
+| Desktop | Electron |
+| Realtime | WebSocket (Binance spot + futures mark) |
+| Lưu trữ cục bộ | `localStorage` (watchlist) |
+
+---
+
+## Cách chạy (How to run)
+
+### Yêu cầu
+
+- [Node.js](https://nodejs.org/) (khuyến nghị LTS)
+- npm (đi kèm Node)
+
+### Cài đặt
+
+```bash
+cd Crypto_Desktop_Widget
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Chạy lại nếu xóa `node_modules` hoặc clone repo mới.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Development
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+**Chỉ web (Vite):**
+
+```bash
+npm run dev
 ```
+
+Mở URL terminal in ra (thường `http://127.0.0.1:5173`).
+
+**Desktop (Electron + Vite):**
+
+```bash
+npm run dev:electron
+```
+
+Dừng: **Ctrl+C** trong terminal. Nếu port **5173** bị chiếm:
+
+```bash
+npm run dev:electron:5174
+```
+
+### Build production
+
+```bash
+npm run build
+```
+
+Output: thư mục `dist/`.
+
+### Lệnh khác
+
+| Lệnh | Mô tả |
+|------|--------|
+| `npm run preview` | Xem trước bản build Vite |
+| `npm run lint` | ESLint |
+| `npm run electron` | Electron (cần bundle / URL load phù hợp) |
+
+### Xử lý sự cố nhanh
+
+- **`npm install` lỗi:** xóa `node_modules` (và lockfile nếu cần), cài lại.
+- **Electron trống:** đảm bảo Vite chạy không lỗi; thử tắt hết và `npm run dev:electron` lại.
+
+---
+
+## Tài liệu
+
+- **[PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md)** — tổng quan, kiến trúc, luồng dữ liệu (song ngữ + Mermaid).

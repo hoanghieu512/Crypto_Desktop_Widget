@@ -199,5 +199,4 @@ flowchart TD
 
 ## Related docs | Tài liệu liên quan
 
-- **Run / Chạy project:** [HUONG_DAN.md](./HUONG_DAN.md)  
-- **Template README:** [README.md](./README.md)
+- **Run & intro / Chạy & giới thiệu repo:** [README.md](./README.md)
