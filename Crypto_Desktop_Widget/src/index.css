@@ -1,0 +1,30 @@
+@import 'tailwindcss';
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    @apply bg-slate-950 text-slate-200 antialiased;
+    overflow: hidden;
+  }
+}
+
+/*
+ * Electron frameless: -webkit-app-region
+ * - .app-drag  → vùng kéo toàn cửa sổ (header, khoảng trống)
+ * - .app-no-drag → nút, input, scroll — không kích hoạt drag
+ */
+@layer utilities {
+  .app-drag {
+    -webkit-app-region: drag;
+  }
+
+  .app-no-drag {
+    -webkit-app-region: no-drag;
+  }
+}
