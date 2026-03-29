@@ -38,10 +38,14 @@ import {
 import { useFormat } from '../providers/FormatProvider'
 import { normalizeCryptoPairInput } from '../utils/cryptoPair'
 import { AssetCard } from './AssetCard'
+import { ConnectionStatusDot } from './ConnectionStatusDot'
 import { FuturesSimulatorPanel } from './FuturesSimulatorPanel'
 import { SessionBar } from './SessionBar'
 
 const STORAGE_KEY = 'crypto-watchlist-v2'
+
+/** Sau khoảng này không có tick WS → coi giá có thể cũ (UI dim) */
+const PRICE_STALE_AFTER_MS = 10_000
 
 type MarketMode = 'global' | 'perCoin'
 
@@ -161,11 +165,24 @@ function basisHint(
   return `So với mark futures: ${sign}${diffPct.toFixed(3)}%`
 }
 
-function CryptoAmount({ raw, className = '' }: { raw: string; className?: string }) {
+function CryptoAmount({
+  raw,
+  className = '',
+  transitionClass = '',
+}: {
+  raw: string
+  className?: string
+  /** Thêm transition khi số đổi (crypto) */
+  transitionClass?: string
+}) {
   const { formatPrice } = useFormat()
   const n = Number(raw)
-  if (!Number.isFinite(n)) return <span className={className}>{raw}</span>
-  return <span className={className}>{formatPrice(n, 'crypto')}</span>
+  if (!Number.isFinite(n)) return <span className={`${className} ${transitionClass}`.trim()}>{raw}</span>
+  return (
+    <span className={`tabular-nums ${className} ${transitionClass}`.trim()}>
+      {formatPrice(n, 'crypto')}
+    </span>
+  )
 }
 
 function FundingEta({ ts }: { ts: number }) {
@@ -290,6 +307,8 @@ type RowProps = {
   mode: MarketMode
   entry: PriceMapEntry | undefined
   prices: Readonly<Record<string, PriceMapEntry>>
+  /** ms từ Date.now() — dùng chung một tick để tính stale, tránh mỗi dòng một interval */
+  stalenessClock: number
   onRemove: (id: string) => void
   onToggleRowMarket: (id: string) => void
   dragDisabled?: boolean
@@ -302,6 +321,7 @@ const WatchlistRow = memo(function WatchlistRow({
   mode,
   entry,
   prices,
+  stalenessClock,
   onRemove,
   onToggleRowMarket,
   dragDisabled,
@@ -327,6 +347,10 @@ const WatchlistRow = memo(function WatchlistRow({
   const sym = item.symbol.trim().toLowerCase()
   const display = item.symbol.trim().toUpperCase()
   const hint = basisHint(sym, market, prices)
+
+  const priceStale =
+    entry != null && stalenessClock - entry.lastUpdated > PRICE_STALE_AFTER_MS
+  const priceTransition = 'transition-[color,opacity] duration-300 ease-out'
 
   const badgeClassName =
     market === 'spot'
@@ -403,6 +427,8 @@ const WatchlistRow = memo(function WatchlistRow({
           price={Number.isFinite(lastN) ? lastN : '—'}
           change={Number.isFinite(pct) ? pct : undefined}
           changeLabel="24h"
+          priceMuted={priceStale}
+          smoothPriceUpdate={Number.isFinite(lastN)}
         >
           {hint ? <p className="text-[11px] text-violet-300/90">{hint}</p> : null}
         </AssetCard>
@@ -426,13 +452,23 @@ const WatchlistRow = memo(function WatchlistRow({
       action={actions}
       priceLabel="Mark price"
       price={Number.isFinite(markN) ? markN : '—'}
+      priceMuted={priceStale}
+      smoothPriceUpdate={Number.isFinite(markN)}
     >
       {hint ? <p className="text-[11px] text-violet-300/90">{hint}</p> : null}
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div
+        className={`grid gap-2 sm:grid-cols-2 ${
+          priceStale ? 'opacity-50 transition-opacity duration-300 ease-out' : ''
+        }`.trim()}
+      >
         {f.indexPrice ? (
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Index</p>
-            <CryptoAmount raw={f.indexPrice} className="font-mono text-sm text-slate-300" />
+            <CryptoAmount
+              raw={f.indexPrice}
+              className="font-mono text-sm text-slate-300"
+              transitionClass={priceTransition}
+            />
           </div>
         ) : null}
         <div className={f.indexPrice ? 'sm:text-right' : ''}>
@@ -492,6 +528,7 @@ export function WatchlistDashboard() {
   const [items, setItems] = useState<WatchItem[]>(initial.items)
   const [draft, setDraft] = useState('sol')
   const [draftMarket, setDraftMarket] = useState<Market>('spot')
+  const [stalenessClock, setStalenessClock] = useState(() => Date.now())
 
   const sortableIds = useMemo(() => items.map((i) => i.id), [items])
 
@@ -540,7 +577,13 @@ export function WatchlistDashboard() {
     [items, marketMode, globalMarket],
   )
 
-  const { prices, loading, spot, futures } = useRealtimePrice(watchEntries)
+  const { prices, loading, connectionStatus, spot, futures } =
+    useRealtimePrice(watchEntries)
+
+  useEffect(() => {
+    const id = window.setInterval(() => setStalenessClock(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
 
   const remove = useCallback((id: string) => {
     setItems((prev) => prev.filter((x) => x.id !== id))
@@ -820,11 +863,12 @@ export function WatchlistDashboard() {
   }
 
   const statusToneClass = (() => {
+    if (connectionStatus === 'error') return 'text-rose-400'
+    if (connectionStatus === 'reconnecting' || connectionStatus === 'connecting') {
+      return 'text-amber-400'
+    }
     const spotOk = spot.streams.length === 0 || spot.status === 'open'
     const futOk = futures.streams.length === 0 || futures.status === 'open'
-    const spotBad = spot.streams.length > 0 && spot.status === 'closed'
-    const futBad = futures.streams.length > 0 && futures.status === 'closed'
-    if (spotBad || futBad) return 'text-rose-400'
     if (spotOk && futOk) return 'text-emerald-400'
     return 'text-amber-400'
   })()
@@ -839,10 +883,13 @@ export function WatchlistDashboard() {
   const segBtnOnFut = 'bg-amber-500/25 text-amber-100 shadow-sm'
 
   const cryptoHeaderStatus = (
-    <div className="flex max-w-[min(100%,14rem)] flex-col items-end gap-0.5 text-right">
-      {loading && watchEntries.length > 0 ? (
-        <span className="text-[10px] text-slate-500">Đang tải…</span>
-      ) : null}
+    <div className="flex max-w-[min(100%,15rem)] flex-col items-end gap-0.5 text-right">
+      <div className="flex items-center justify-end gap-1.5">
+        <ConnectionStatusDot status={connectionStatus} spot={spot} futures={futures} />
+        {loading && watchEntries.length > 0 ? (
+          <span className="text-[10px] text-slate-500">Đang tải…</span>
+        ) : null}
+      </div>
       <span
         className={`text-xs leading-tight ${statusToneClass}`}
         title={errTitle || undefined}
@@ -969,13 +1016,28 @@ export function WatchlistDashboard() {
           <SessionBar />
         </div>
 
-        <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-          <ul className="flex flex-col gap-2">
+        <div className="relative min-h-0">
+          {connectionStatus === 'reconnecting' && items.length > 0 ? (
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-2 pt-1"
+              role="status"
+            >
+              <div className="flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-950/90 px-3 py-1 text-[10px] font-medium text-amber-100/95 shadow-md backdrop-blur-sm">
+                <span
+                  className="inline-block size-3 shrink-0 animate-spin rounded-full border-2 border-amber-400/40 border-t-transparent"
+                  aria-hidden
+                />
+                Đang kết nối lại…
+              </div>
+            </div>
+          ) : null}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+              <ul className="flex flex-col gap-2">
             {items.length === 0 ? (
               <li className="list-none">
                 <AssetCard type="crypto" dense title="Watchlist" badge="Trống" hidePrice price="">
@@ -997,6 +1059,7 @@ export function WatchlistDashboard() {
                     mode={marketMode}
                     entry={entry}
                     prices={prices}
+                    stalenessClock={stalenessClock}
                     onRemove={remove}
                     onToggleRowMarket={toggleRowMarket}
                     dragDisabled={loading}
@@ -1007,9 +1070,10 @@ export function WatchlistDashboard() {
                 )
               })
             )}
-          </ul>
-        </SortableContext>
-      </DndContext>
+              </ul>
+            </SortableContext>
+          </DndContext>
+        </div>
       </div>
 
       {isSimulatorOpen && simulatorSession ? (

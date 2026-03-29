@@ -25,15 +25,26 @@ export type FuturesMarkSnapshot = {
 }
 
 export type PriceMapEntry =
-  | { market: 'spot'; snapshot: TickerSnapshot }
-  | { market: 'futures'; snapshot: FuturesMarkSnapshot }
+  | { market: 'spot'; snapshot: TickerSnapshot; lastUpdated: number }
+  | { market: 'futures'; snapshot: FuturesMarkSnapshot; lastUpdated: number }
 
-export type ConnectionStatus =
+/** Trạng thái socket từng thị trường (chi tiết) */
+export type MarketWsStatus =
   | 'idle'
   | 'connecting'
   | 'open'
   | 'reconnecting'
   | 'closed'
+
+/** Trạng thái gộp cho UI (crypto dashboard) */
+export type RealtimeConnectionStatus =
+  | 'connecting'
+  | 'live'
+  | 'reconnecting'
+  | 'error'
+
+/** @deprecated Dùng MarketWsStatus */
+export type ConnectionStatus = MarketWsStatus
 
 export type WatchPriceEntry = {
   /** Khóa ổn định theo dòng watchlist */
@@ -48,7 +59,7 @@ export type UseRealtimePriceOptions = {
 }
 
 export type MarketSocketSlice = {
-  status: ConnectionStatus
+  status: MarketWsStatus
   streams: readonly string[]
   lastError: string | null
 }
@@ -57,6 +68,8 @@ export type UseRealtimePriceResult = {
   /** Khóa: `${symbol}|spot` hoặc `${symbol}|futures` (symbol đã lowercase) */
   prices: Readonly<Record<string, PriceMapEntry>>
   loading: boolean
+  /** Gộp spot + futures: live / đang nối / tái nối / lỗi */
+  connectionStatus: RealtimeConnectionStatus
   spot: MarketSocketSlice
   futures: MarketSocketSlice
 }
@@ -193,6 +206,35 @@ function streamKeyFromList(list: string[]): string {
   return list.join(',')
 }
 
+export function deriveRealtimeConnectionStatus(
+  spot: MarketSocketSlice,
+  futures: MarketSocketSlice,
+): RealtimeConnectionStatus {
+  const sA = spot.streams.length > 0
+  const fA = futures.streams.length > 0
+  if (!sA && !fA) return 'live'
+
+  const sOpen = !sA || spot.status === 'open'
+  const fOpen = !fA || futures.status === 'open'
+  if (sOpen && fOpen) return 'live'
+
+  const sRec =
+    sA && (spot.status === 'reconnecting' || spot.status === 'closed')
+  const fRec =
+    fA && (futures.status === 'reconnecting' || futures.status === 'closed')
+  if (sRec || fRec) return 'reconnecting'
+
+  const sCon = sA && spot.status === 'connecting'
+  const fCon = fA && futures.status === 'connecting'
+  if (sCon || fCon) return 'connecting'
+
+  const errSpot = sA && spot.lastError != null && !sOpen
+  const errFut = fA && futures.lastError != null && !fOpen
+  if (errSpot || errFut) return 'error'
+
+  return 'connecting'
+}
+
 /**
  * Hai kết nối WebSocket gộp stream: Spot (`stream.binance`) & Futures (`fstream.binance`, `@markPrice`).
  * Mỗi thị trường tự reconnect exponential backoff; đóng sạch khi đổi watchlist / market.
@@ -218,8 +260,8 @@ export function useRealtimePrice(
 
   const [prices, setPrices] = useState<Record<string, PriceMapEntry>>({})
 
-  const [spotStatus, setSpotStatus] = useState<ConnectionStatus>('idle')
-  const [futuresStatus, setFuturesStatus] = useState<ConnectionStatus>('idle')
+  const [spotStatus, setSpotStatus] = useState<MarketWsStatus>('idle')
+  const [futuresStatus, setFuturesStatus] = useState<MarketWsStatus>('idle')
   const [spotErr, setSpotErr] = useState<string | null>(null)
   const [futErr, setFutErr] = useState<string | null>(null)
 
@@ -251,7 +293,11 @@ export function useRealtimePrice(
       for (const [sym, snap] of Object.entries(batchSpot)) {
         const k = priceMapKey(sym, 'spot')
         const old = prev[k]
-        const entry: PriceMapEntry = { market: 'spot', snapshot: snap }
+        const entry: PriceMapEntry = {
+          market: 'spot',
+          snapshot: snap,
+          lastUpdated: Date.now(),
+        }
         if (!old || old.market !== 'spot' || !spotEqual(old.snapshot, snap)) {
           next[k] = entry
           changed = true
@@ -260,7 +306,11 @@ export function useRealtimePrice(
       for (const [sym, snap] of Object.entries(batchFut)) {
         const k = priceMapKey(sym, 'futures')
         const old = prev[k]
-        const entry: PriceMapEntry = { market: 'futures', snapshot: snap }
+        const entry: PriceMapEntry = {
+          market: 'futures',
+          snapshot: snap,
+          lastUpdated: Date.now(),
+        }
         if (!old || old.market !== 'futures' || !futuresEqual(old.snapshot, snap)) {
           next[k] = entry
           changed = true
@@ -343,7 +393,11 @@ export function useRealtimePrice(
             for (const [sym, snap] of Object.entries(batch)) {
               const k = priceMapKey(sym, 'spot')
               const old = prev[k]
-              const entry: PriceMapEntry = { market: 'spot', snapshot: snap }
+              const entry: PriceMapEntry = {
+                market: 'spot',
+                snapshot: snap,
+                lastUpdated: Date.now(),
+              }
               if (!old || old.market !== 'spot' || !spotEqual(old.snapshot, snap)) {
                 next[k] = entry
                 changed = true
@@ -403,7 +457,11 @@ export function useRealtimePrice(
             for (const [sym, snap] of Object.entries(batch)) {
               const k = priceMapKey(sym, 'futures')
               const old = prev[k]
-              const entry: PriceMapEntry = { market: 'futures', snapshot: snap }
+              const entry: PriceMapEntry = {
+                market: 'futures',
+                snapshot: snap,
+                lastUpdated: Date.now(),
+              }
               if (!old || old.market !== 'futures' || !futuresEqual(old.snapshot, snap)) {
                 next[k] = entry
                 changed = true
@@ -501,18 +559,22 @@ export function useRealtimePrice(
       (futuresStatus === 'connecting' ||
         (futuresStatus === 'open' && futAwaiting)))
 
+  const spotSlice: MarketSocketSlice = {
+    status: spotSymbols.length === 0 ? 'idle' : spotStatus,
+    streams: spotSymbols,
+    lastError: spotErr,
+  }
+  const futuresSlice: MarketSocketSlice = {
+    status: futuresSymbols.length === 0 ? 'idle' : futuresStatus,
+    streams: futuresSymbols,
+    lastError: futErr,
+  }
+
   return {
     prices,
     loading,
-    spot: {
-      status: spotSymbols.length === 0 ? 'idle' : spotStatus,
-      streams: spotSymbols,
-      lastError: spotErr,
-    },
-    futures: {
-      status: futuresSymbols.length === 0 ? 'idle' : futuresStatus,
-      streams: futuresSymbols,
-      lastError: futErr,
-    },
+    connectionStatus: deriveRealtimeConnectionStatus(spotSlice, futuresSlice),
+    spot: spotSlice,
+    futures: futuresSlice,
   }
 }

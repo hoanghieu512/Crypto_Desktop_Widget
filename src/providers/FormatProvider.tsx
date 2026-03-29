@@ -113,9 +113,14 @@ export function FormatProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false
     const pull = () => {
-      void fetchUsdVnd().then((v) => {
-        if (!cancelled && v != null && Number.isFinite(v) && v > 0) {
-          setRateState(v)
+      void fetchUsdVnd().then((res) => {
+        if (
+          !cancelled &&
+          res.ok &&
+          Number.isFinite(res.rate) &&
+          res.rate > 0
+        ) {
+          setRateState(res.rate)
         }
       })
     }

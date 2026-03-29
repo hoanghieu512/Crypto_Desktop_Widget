@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { fetchGoldWithFallback } from '../api/fetchGoldWithFallback'
 import { fetchSilverWorldWithFallback } from '../api/fetchSilverWorldWithFallback'
+import {
+  fetchVnSilverPrices,
+  type VnSilverListing,
+} from '../api/fetchVnSilverPrices'
 import { fetchUsdVnd } from '../api/fetchUsdVnd'
+import type { StaleBannerState } from './useGoldPrice'
+import { useOnlineStatus } from './useOnlineStatus'
 import {
   convertUsdPerTroyOzToVndPerLuong,
   getSpreadInsight,
@@ -12,12 +17,34 @@ import {
   calculateMetalSpread,
   metalSpreadAccentClass,
 } from '../utils/metalSpot'
-import { pickVnSilverFromPrices, type VnSilverQuote } from '../utils/vnSilverFromPrices'
 
 const POLL_MS = 60_000
 
 /** Băng trung tính cho bạc (VND/lượng) */
 const SILVER_NEUTRAL_BAND_VND = 15_000
+
+function primaryVnListing(listings: VnSilverListing[]): VnSilverListing | null {
+  const order = ['PQBAC999_1L', 'PQBAC999_10L']
+  for (const c of order) {
+    const x = listings.find((l) => l.code === c)
+    if (x) return x
+  }
+  return listings[0] ?? null
+}
+
+function mergeFxWorldStale(
+  parts: Array<{ isStale: boolean; cachedAt: number }>,
+): { isStale: boolean; cachedAt: number | null } {
+  let isStale = false
+  let cachedAt: number | null = null
+  for (const p of parts) {
+    if (p.isStale) {
+      isStale = true
+      cachedAt = cachedAt == null ? p.cachedAt : Math.min(cachedAt, p.cachedAt)
+    }
+  }
+  return { isStale, cachedAt }
+}
 
 export type SilverPriceSnapshot = {
   worldBuyUsdPerOz: number | null
@@ -36,26 +63,31 @@ export type SilverPriceSnapshot = {
   spreadAccentClass: string
   spreadInsightLabel: string
   updatedAt: string | null
-  /** Đã tải bảng niêm yết nhưng không có dòng bạc VN */
+  /** Đã thử tải Phú Quý nhưng không có dòng / lỗi */
   vnSilverMissing: boolean
 }
 
 export function useSilverPrice(enabled: boolean) {
+  const online = useOnlineStatus()
   const [worldBuyUsd, setWorldBuyUsd] = useState<number | null>(null)
   const [worldSellUsd, setWorldSellUsd] = useState<number | null>(null)
   const [worldMidUsd, setWorldMidUsd] = useState<number | null>(null)
   const [usdVnd, setUsdVnd] = useState<number | null>(null)
-  const [vnSilver, setVnSilver] = useState<VnSilverQuote | null>(null)
-  const [updatedAt, setUpdatedAt] = useState<string | null>(null)
-  /** Lần tải niêm yết gần nhất thành công (dùng để biết “không có dòng bạc” vs “lỗi mạng”) */
-  const [listingsSucceeded, setListingsSucceeded] = useState(false)
+  const [vnSilverListings, setVnSilverListings] = useState<VnSilverListing[]>([])
+  const [vnSilverLastUpdated, setVnSilverLastUpdated] = useState<string | null>(null)
+  const [vnSilverAttempted, setVnSilverAttempted] = useState(false)
   const [loading, setLoading] = useState(enabled)
   const [worldError, setWorldError] = useState<string | null>(null)
   const [listingsError, setListingsError] = useState<string | null>(null)
   const [fxError, setFxError] = useState<string | null>(null)
   const [worldWarning, setWorldWarning] = useState<string | null>(null)
   const [listingsWarning, setListingsWarning] = useState<string | null>(null)
+  const [staleMeta, setStaleMeta] = useState<{ isStale: boolean; cachedAt: number | null }>({
+    isStale: false,
+    cachedAt: null,
+  })
   const [dataNonce, setDataNonce] = useState(0)
+  const bypassVnCacheRef = useRef(false)
 
   const mounted = useRef(true)
   const firstLoadRef = useRef(true)
@@ -77,13 +109,27 @@ export function useSilverPrice(enabled: boolean) {
     setListingsWarning(null)
 
     try {
-      const [silverWorld, goldOutcome, rate] = await Promise.all([
+      const bypassVn = bypassVnCacheRef.current
+      bypassVnCacheRef.current = false
+
+      const [silverWorld, phuQuy, fxResult] = await Promise.all([
         fetchSilverWorldWithFallback(),
-        fetchGoldWithFallback(),
+        fetchVnSilverPrices({ bypassCache: bypassVn }),
         fetchUsdVnd(),
       ])
 
       if (!mounted.current) return
+
+      setVnSilverAttempted(true)
+
+      const staleParts: { isStale: boolean; cachedAt: number }[] = []
+      if (silverWorld.ok && silverWorld.isStale) {
+        staleParts.push({ isStale: true, cachedAt: silverWorld.cachedAt })
+      }
+      if (fxResult.ok && fxResult.isStale) {
+        staleParts.push({ isStale: true, cachedAt: fxResult.cachedAt })
+      }
+      setStaleMeta(mergeFxWorldStale(staleParts))
 
       if (silverWorld.ok) {
         setWorldWarning(silverWorld.warning)
@@ -98,29 +144,27 @@ export function useSilverPrice(enabled: boolean) {
         setWorldError(silverWorld.error)
       }
 
-      if (goldOutcome.ok) {
-        setListingsSucceeded(true)
-        setListingsWarning(goldOutcome.warning)
+      if (phuQuy && phuQuy.listings.length > 0) {
+        setVnSilverListings(phuQuy.listings)
+        setVnSilverLastUpdated(phuQuy.pageUpdatedAt)
         setListingsError(null)
-        setVnSilver(pickVnSilverFromPrices(goldOutcome.prices))
-        const stamp =
-          goldOutcome.date && goldOutcome.time
-            ? `${goldOutcome.date} ${goldOutcome.time}`
-            : goldOutcome.timestamp
-              ? new Date(goldOutcome.timestamp * 1000).toLocaleString('vi-VN')
-              : null
-        setUpdatedAt(stamp)
+        setListingsWarning(
+          phuQuy.fromCache ? 'Niêm yết Phú Quý từ cache cục bộ (làm mới để tải lại).' : null,
+        )
       } else {
-        setListingsSucceeded(false)
-        setListingsError(goldOutcome.error)
+        setVnSilverListings([])
+        setVnSilverLastUpdated(null)
+        setListingsError(
+          'Không tải được niêm yết Phú Quý — kiểm tra mạng hoặc thử Làm mới.',
+        )
       }
 
-      if (rate != null) {
-        setUsdVnd(rate)
+      if (fxResult.ok) {
+        setUsdVnd(fxResult.rate)
         setFxError(null)
       } else {
         setUsdVnd(null)
-        setFxError('Không tải được tỷ giá USD/VND.')
+        setFxError(fxResult.error)
       }
     } catch {
       if (mounted.current) {
@@ -135,11 +179,26 @@ export function useSilverPrice(enabled: boolean) {
     }
   }, [enabled])
 
+  const refresh = useCallback(() => {
+    bypassVnCacheRef.current = true
+    void fetchAll()
+  }, [fetchAll])
+
+  useEffect(() => {
+    if (!enabled) return
+    const onOnline = () => void fetchAll()
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [enabled, fetchAll])
+
   useEffect(() => {
     if (!enabled) {
       firstLoadRef.current = true
       setLoading(false)
-      setListingsSucceeded(false)
+      setVnSilverListings([])
+      setVnSilverLastUpdated(null)
+      setVnSilverAttempted(false)
+      setStaleMeta({ isStale: false, cachedAt: null })
       return
     }
     void fetchAll()
@@ -163,10 +222,14 @@ export function useSilverPrice(enabled: boolean) {
         ? convertUsdPerTroyOzToVndPerLuong(worldMidUsd, rate)
         : null
 
-    const vnMid = vnSilver?.midVndPerLuong ?? null
-    const vnBuy = vnSilver?.buy ?? null
-    const vnSell = vnSilver?.sell ?? null
-    const vnLabel = vnSilver ? `${vnSilver.name} (${vnSilver.code})` : null
+    const primary = primaryVnListing(vnSilverListings)
+    const vnMid = primary != null ? (primary.buy + primary.sell) / 2 : null
+    const vnBuy = primary?.buy ?? null
+    const vnSell = primary?.sell ?? null
+    const vnLabel =
+      primary != null
+        ? `${primary.brand} — ${primary.name} (${primary.code})`
+        : null
 
     const spread =
       vnMid != null && worldMidVnd != null
@@ -177,6 +240,9 @@ export function useSilverPrice(enabled: boolean) {
     const insight = spread
       ? getSpreadInsight(spreadVnd, SILVER_NEUTRAL_BAND_VND)
       : 'neutral'
+
+    const vnSilverMissing =
+      vnSilverAttempted && vnSilverListings.length === 0 && !loading
 
     return {
       worldBuyUsdPerOz: worldBuyUsd,
@@ -196,18 +262,26 @@ export function useSilverPrice(enabled: boolean) {
         ? metalSpreadAccentClass(spreadVnd, SILVER_NEUTRAL_BAND_VND)
         : 'text-slate-400',
       spreadInsightLabel: spreadInsightLabelVi(insight),
-      updatedAt,
-      vnSilverMissing: listingsSucceeded && vnSilver == null,
+      updatedAt: vnSilverLastUpdated,
+      vnSilverMissing,
     }
   }, [
     worldBuyUsd,
     worldSellUsd,
     worldMidUsd,
     usdVnd,
-    vnSilver,
-    updatedAt,
-    listingsSucceeded,
+    vnSilverListings,
+    vnSilverLastUpdated,
+    vnSilverAttempted,
+    loading,
   ])
+
+  const staleBanner: StaleBannerState = {
+    show: !online || staleMeta.isStale,
+    offline: !online,
+    cachedAt: staleMeta.cachedAt,
+    reconnecting: Boolean(loading && online && staleMeta.isStale),
+  }
 
   return {
     ...snapshot,
@@ -218,6 +292,17 @@ export function useSilverPrice(enabled: boolean) {
     worldWarning,
     listingsWarning,
     dataNonce,
-    refresh: fetchAll,
+    isStale: staleMeta.isStale,
+    cachedAt: staleMeta.cachedAt,
+    staleBanner,
+    /** Niêm yết Phú Quý — trả về giống useVnMetalPrices */
+    listings: vnSilverListings,
+    lastUpdated: vnSilverLastUpdated,
+    /** cùng cờ loading tổng (spot + FX + Phú Quý) */
+    isLoading: loading,
+    error: listingsError,
+    refresh,
   }
 }
+
+export type UseSilverPriceResult = ReturnType<typeof useSilverPrice>

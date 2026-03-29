@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchGoldWithFallback, type GoldPricesMap } from '../api/fetchGoldWithFallback'
 import { fetchUsdVnd } from '../api/fetchUsdVnd'
+import { useOnlineStatus } from './useOnlineStatus'
 import {
   calculateGoldSpread,
   convertUsdPerTroyOzToVndPerLuong,
@@ -65,6 +66,13 @@ function pickVnSjcTriplet(prices: GoldPricesMap | undefined): {
   return null
 }
 
+export type StaleBannerState = {
+  show: boolean
+  offline: boolean
+  cachedAt: number | null
+  reconnecting: boolean
+}
+
 export type GoldPriceSnapshot = {
   worldBuyUsdPerOz: number | null
   worldSellUsdPerOz: number | null
@@ -77,13 +85,34 @@ export type GoldPriceSnapshot = {
   vnMidVndPerLuong: number | null
   vnLabel: string | null
   vnSource: 'api' | 'mock'
+  /** API có XAU/thế giới nhưng không có mã SJC trong bảng */
+  vnSjcMissing: boolean
   usdVnd: number | null
   spread: GoldSpreadNumbers | null
   insight: SpreadInsight
   updatedAt: string | null
 }
 
+function mergeGoldFxStale(
+  gold: { ok: true; isStale: boolean; cachedAt: number } | { ok: false } | null,
+  fx: { ok: true; isStale: boolean; cachedAt: number } | { ok: false } | null,
+): { isStale: boolean; cachedAt: number | null } {
+  let isStale = false
+  let cachedAt: number | null = null
+  if (gold?.ok === true && gold.isStale) {
+    isStale = true
+    cachedAt = gold.cachedAt
+  }
+  if (fx?.ok === true && fx.isStale) {
+    isStale = true
+    cachedAt =
+      cachedAt == null ? fx.cachedAt : Math.min(cachedAt, fx.cachedAt)
+  }
+  return { isStale, cachedAt }
+}
+
 export function useGoldPrice(enabled: boolean) {
+  const online = useOnlineStatus()
   const [worldXau, setWorldXau] = useState<UsdOzTriplet | null>(null)
   const [usdVnd, setUsdVnd] = useState<number | null>(null)
   const [vnApi, setVnApi] = useState<{
@@ -97,6 +126,11 @@ export function useGoldPrice(enabled: boolean) {
   const [error, setError] = useState<string | null>(null)
   const [fxError, setFxError] = useState<string | null>(null)
   const [goldFetchWarning, setGoldFetchWarning] = useState<string | null>(null)
+  const [staleMeta, setStaleMeta] = useState<{ isStale: boolean; cachedAt: number | null }>({
+    isStale: false,
+    cachedAt: null,
+  })
+  const [vnSjcMissing, setVnSjcMissing] = useState(false)
   /** Tăng mỗi lần fetch xong — dùng cho lịch sử giá / sparkline */
   const [dataNonce, setDataNonce] = useState(0)
 
@@ -118,19 +152,33 @@ export function useGoldPrice(enabled: boolean) {
     setGoldFetchWarning(null)
 
     try {
-      const [goldOutcome, rate] = await Promise.all([
+      const [goldOutcome, fxResult] = await Promise.all([
         fetchGoldWithFallback(),
         fetchUsdVnd(),
       ])
 
       if (!mounted.current) return
 
+      const goldOk = goldOutcome.ok ? goldOutcome : null
+      const fxOk = fxResult.ok ? fxResult : null
+      setStaleMeta(
+        mergeGoldFxStale(
+          goldOk
+            ? { ok: true, isStale: goldOk.isStale, cachedAt: goldOk.cachedAt }
+            : null,
+          fxOk ? { ok: true, isStale: fxOk.isStale, cachedAt: fxOk.cachedAt } : null,
+        ),
+      )
+
       if (goldOutcome.ok) {
         setGoldFetchWarning(goldOutcome.warning)
         setError(null)
         const prices = goldOutcome.prices
-        setWorldXau(parseXauUsdTriplet(prices))
-        setVnApi(pickVnSjcTriplet(prices))
+        const world = parseXauUsdTriplet(prices)
+        const vn = pickVnSjcTriplet(prices)
+        setWorldXau(world)
+        setVnApi(vn)
+        setVnSjcMissing(vn == null && world != null)
         const stamp =
           goldOutcome.date && goldOutcome.time
             ? `${goldOutcome.date} ${goldOutcome.time}`
@@ -139,14 +187,16 @@ export function useGoldPrice(enabled: boolean) {
               : null
         setUpdatedAt(stamp)
       } else {
+        setVnSjcMissing(false)
         setError(goldOutcome.error)
       }
 
-      if (rate != null) {
-        setUsdVnd(rate)
+      if (fxResult.ok) {
+        setUsdVnd(fxResult.rate)
+        setFxError(null)
       } else {
         setUsdVnd(null)
-        setFxError('Không tải được tỷ giá USD/VND.')
+        setFxError(fxResult.error)
       }
     } catch {
       if (mounted.current) setError('Lỗi không xác định khi tải giá vàng.')
@@ -160,9 +210,18 @@ export function useGoldPrice(enabled: boolean) {
   }, [enabled])
 
   useEffect(() => {
+    if (!enabled) return
+    const onOnline = () => void fetchAll()
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [enabled, fetchAll])
+
+  useEffect(() => {
     if (!enabled) {
       firstLoadRef.current = true
       setLoading(false)
+      setStaleMeta({ isStale: false, cachedAt: null })
+      setVnSjcMissing(false)
       return
     }
     void fetchAll()
@@ -187,19 +246,18 @@ export function useGoldPrice(enabled: boolean) {
         : null
 
     const vnSource: 'api' | 'mock' = vnApi ? 'api' : 'mock'
+    const useMockVn = !vnSjcMissing && vnApi == null
     const mockMid =
-      worldMidVnd != null ? MOCK_VN_VND_PER_LUONG : null
-    const vnMid =
-      vnApi?.midVnd ??
-      mockMid
+      useMockVn && worldMidVnd != null ? MOCK_VN_VND_PER_LUONG : null
+    const vnMid = vnApi?.midVnd ?? mockMid
     const vnBuy =
       vnApi?.buyVnd ??
-      (vnMid != null ? vnMid - MOCK_VN_SPREAD : null)
+      (useMockVn && vnMid != null ? vnMid - MOCK_VN_SPREAD : null)
     const vnSell =
       vnApi?.sellVnd ??
-      (vnMid != null ? vnMid + MOCK_VN_SPREAD : null)
+      (useMockVn && vnMid != null ? vnMid + MOCK_VN_SPREAD : null)
     const vnLabel =
-      vnApi?.label ?? (vnMid != null ? 'Mock (thiếu SJC API)' : null)
+      vnApi?.label ?? (useMockVn && vnMid != null ? 'Mock (thiếu SJC API)' : null)
 
     /** So sánh VN vs TG theo giá bán (bán ra), không dùng giữa */
     const spread =
@@ -221,12 +279,20 @@ export function useGoldPrice(enabled: boolean) {
       vnMidVndPerLuong: vnMid,
       vnLabel,
       vnSource,
+      vnSjcMissing,
       usdVnd: rate,
       spread,
       insight,
       updatedAt,
     }
-  }, [worldXau, usdVnd, vnApi, updatedAt])
+  }, [worldXau, usdVnd, vnApi, vnSjcMissing, updatedAt])
+
+  const staleBanner: StaleBannerState = {
+    show: !online || staleMeta.isStale,
+    offline: !online,
+    cachedAt: staleMeta.cachedAt,
+    reconnecting: Boolean(loading && online && staleMeta.isStale),
+  }
 
   return {
     ...snapshot,
@@ -235,6 +301,9 @@ export function useGoldPrice(enabled: boolean) {
     fxError,
     goldFetchWarning,
     dataNonce,
+    isStale: staleMeta.isStale,
+    cachedAt: staleMeta.cachedAt,
+    staleBanner,
     refresh: fetchAll,
   }
 }

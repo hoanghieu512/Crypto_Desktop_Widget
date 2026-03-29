@@ -1,4 +1,4 @@
-import { memo, useMemo, type ReactNode } from 'react'
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useFormat } from '../providers/FormatProvider'
 import { buildFormatOptions, formatPrice } from '../utils/formatPrice'
 import { Badge, type BadgeVariant } from './Badge'
@@ -62,6 +62,10 @@ export type AssetCardProps = {
   priceLabel?: string
   /** Tailwind classes for main price line */
   priceClassName?: string
+  /** Chuyển động nhẹ khi giá số thay đổi (crypto realtime) */
+  smoothPriceUpdate?: boolean
+  /** Giá không cập nhật gần đây — làm mờ khối giá + % thay đổi */
+  priceMuted?: boolean
   /** Cùng hàng với giá, căn phải (vd. premium Vàng/Bạc) */
   priceAside?: ReactNode
   className?: string
@@ -84,12 +88,30 @@ export const AssetCard = memo(function AssetCard({
   meta,
   priceLabel,
   priceClassName,
+  smoothPriceUpdate = false,
+  priceMuted = false,
   priceAside,
   className = '',
   dense = false,
   hidePrice = false,
 }: AssetCardProps) {
   const { mode, currency, rate } = useFormat()
+  const [priceBump, setPriceBump] = useState(false)
+  const prevNumeric = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!smoothPriceUpdate || hidePrice) return
+    if (typeof price !== 'number' || !Number.isFinite(price)) {
+      prevNumeric.current = null
+      return
+    }
+    const prev = prevNumeric.current
+    prevNumeric.current = price
+    if (prev == null || prev === price) return
+    setPriceBump(true)
+    const t = window.setTimeout(() => setPriceBump(false), 320)
+    return () => clearTimeout(t)
+  }, [price, smoothPriceUpdate, hidePrice])
   const pad = dense ? 'p-2.5' : 'p-3'
   const badgeText = badge ?? defaultBadgeText[type]
   const showSparkline = Array.isArray(sparkline) && sparkline.length >= 2
@@ -125,16 +147,28 @@ export const AssetCard = memo(function AssetCard({
       {meta ? <div className="text-xs text-slate-500">{meta}</div> : null}
 
       {showPriceBlock ? (
-        <div>
+        <div
+          className={
+            priceMuted
+              ? 'opacity-50 transition-opacity duration-300 ease-out'
+              : undefined
+          }
+        >
           <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
             <div className="min-w-0">
               {priceLabel ? (
                 <p className="mb-0.5 text-xs font-medium text-slate-500">{priceLabel}</p>
               ) : null}
               <div
-                className={`font-mono font-semibold tracking-tight ${priceSize} ${
+                className={`origin-left font-mono font-semibold tabular-nums tracking-tight ${priceSize} ${
                   priceClassName ?? 'text-slate-50'
-                }`}
+                } ${
+                  smoothPriceUpdate
+                    ? `transition-[transform,color,opacity] duration-300 ease-out ${
+                        priceBump ? 'scale-[1.02] text-sky-100' : 'scale-100'
+                      }`
+                    : ''
+                }`.trim()}
               >
                 {priceText}
               </div>

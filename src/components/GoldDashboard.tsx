@@ -7,6 +7,7 @@ import {
 } from '../utils/goldDisplay'
 import { spreadAccentClass, spreadInsightLabelVi } from '../utils/goldPrice'
 import { AssetCard } from './AssetCard'
+import { StaleBanner } from './StaleBanner'
 
 function fmtSignedPct(p: number): string {
   const sign = p > 0 ? '+' : ''
@@ -38,6 +39,9 @@ export function GoldDashboard({ active }: Props) {
     fxError,
     goldFetchWarning,
     updatedAt,
+    vnSjcMissing,
+    isStale,
+    staleBanner,
     refresh,
   } = useGoldPrice(active)
 
@@ -45,12 +49,16 @@ export function GoldDashboard({ active }: Props) {
 
   const accent = spreadAccentClass(insight)
   const sp = spread
-  const ready =
+  const worldOk =
     worldBuyVndPerLuong != null &&
     worldSellVndPerLuong != null &&
+    worldBuyUsdPerOz != null &&
+    worldSellUsdPerOz != null
+  const vnOk =
+    !vnSjcMissing &&
     vnBuyVndPerLuong != null &&
-    vnSellVndPerLuong != null &&
-    sp != null
+    vnSellVndPerLuong != null
+  const ready = worldOk && vnOk && sp != null
 
   const vnBidAskSpread = ready ? vnSellVndPerLuong! - vnBuyVndPerLuong! : null
 
@@ -68,7 +76,15 @@ export function GoldDashboard({ active }: Props) {
   )
 
   return (
-    <div title={PAGE_TOOLTIP}>
+    <div title={PAGE_TOOLTIP} className="flex flex-col gap-2">
+      <StaleBanner
+        {...staleBanner}
+        onManualRefresh={
+          isStale ? () => {
+            void refresh()
+          } : undefined
+        }
+      />
       <AssetCard
         type="gold"
         title="Vàng"
@@ -87,8 +103,18 @@ export function GoldDashboard({ active }: Props) {
             </>
           ) : undefined
         }
-        priceLabel={ready ? 'Bán VN / lượng' : undefined}
-        price={ready ? vnSellVndPerLuong! : loading ? '…' : '—'}
+        priceLabel={
+          vnSjcMissing ? undefined : ready ? 'Bán VN / lượng' : undefined
+        }
+        price={
+          ready
+            ? vnSellVndPerLuong!
+            : vnSjcMissing && worldOk
+              ? '—'
+              : loading
+                ? '…'
+                : '—'
+        }
         priceClassName="text-white"
         priceAside={
           ready ? (
@@ -102,7 +128,17 @@ export function GoldDashboard({ active }: Props) {
           ) : undefined
         }
       >
-        {loading && !ready ? <p className="text-xs text-slate-500">Đang tải…</p> : null}
+        {vnSjcMissing && worldOk ? (
+          <p
+            className="rounded-md border border-amber-500/35 bg-amber-950/35 px-2 py-1.5 text-[11px] text-amber-100/95"
+            role="status"
+          >
+            Không có dữ liệu SJC trong bảng niêm yết (mã SJL1L10 / VNGSJC).
+          </p>
+        ) : null}
+        {loading && !ready && !vnSjcMissing ? (
+          <p className="text-xs text-slate-500">Đang tải…</p>
+        ) : null}
         {goldFetchWarning ? (
           <p
             className="rounded-md border border-amber-500/35 bg-amber-950/40 px-2 py-1 text-[10px] leading-snug text-amber-100/90"
@@ -116,7 +152,7 @@ export function GoldDashboard({ active }: Props) {
           <p className="text-[10px] text-amber-200/70">{fxError}</p>
         ) : null}
 
-        {ready ? (
+        {worldOk ? (
           <>
             {worldBuyUsdPerOz != null && worldSellUsdPerOz != null && usdVnd != null ? (
               <p className="text-xs text-slate-400">
@@ -138,24 +174,34 @@ export function GoldDashboard({ active }: Props) {
               <div className="text-right text-slate-400">{fmtLevel(worldSellVndPerLuong!)}</div>
 
               <div className="text-slate-400">VN</div>
-              <div className="text-right text-emerald-400">{fmtLevel(vnBuyVndPerLuong!)}</div>
-              <div className="text-right font-semibold text-rose-400">
-                {fmtLevel(vnSellVndPerLuong!)}
-              </div>
+              {vnSjcMissing ? (
+                <div className="col-span-2 text-right text-xs text-amber-200/90">
+                  Không có dữ liệu SJC
+                </div>
+              ) : (
+                <>
+                  <div className="text-right text-emerald-400">{fmtLevel(vnBuyVndPerLuong!)}</div>
+                  <div className="text-right font-semibold text-rose-400">
+                    {fmtLevel(vnSellVndPerLuong!)}
+                  </div>
 
-              <div className="pr-1 text-slate-500" title={GOLD_BUY_SELL_GAP_TOOLTIP}>
-                {GOLD_BUY_SELL_GAP_LABEL}
-              </div>
-              <div />
-              <div className="text-right text-slate-300">
-                {vnBidAskSpread != null ? fmtLevel(vnBidAskSpread) : '—'}
-              </div>
+                  <div className="pr-1 text-slate-500" title={GOLD_BUY_SELL_GAP_TOOLTIP}>
+                    {GOLD_BUY_SELL_GAP_LABEL}
+                  </div>
+                  <div />
+                  <div className="text-right text-slate-300">
+                    {vnBidAskSpread != null ? fmtLevel(vnBidAskSpread) : '—'}
+                  </div>
+                </>
+              )}
             </div>
 
-            <p className="text-xs text-slate-600">
-              {vnLabel}
-              {vnSource === 'mock' ? <span className="text-amber-500/80"> · mock</span> : null}
-            </p>
+            {!vnSjcMissing ? (
+              <p className="text-xs text-slate-600">
+                {vnLabel}
+                {vnSource === 'mock' ? <span className="text-amber-500/80"> · mock</span> : null}
+              </p>
+            ) : null}
           </>
         ) : !loading && !error ? (
           <p className="text-xs text-slate-500">Chưa đủ dữ liệu hiển thị.</p>

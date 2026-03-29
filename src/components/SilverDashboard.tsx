@@ -1,9 +1,11 @@
-import { useSilverPrice } from '../hooks/useSilverPrice'
+import type { UseSilverPriceResult } from '../hooks/useSilverPrice'
 import { useFormatPrice } from '../hooks/useFormatPrice'
 import { SILVER_WORLD_HALF_SPREAD_USD_PER_OZ } from '../api/fetchSilverWorldWithFallback'
 import {
   GOLD_BUY_SELL_GAP_LABEL,
   GOLD_BUY_SELL_GAP_TOOLTIP,
+  goldBidAskGridClass,
+  goldQuotePanelClass,
   metalBidAskTableGridClass,
 } from '../utils/goldDisplay'
 import { AssetCard } from './AssetCard'
@@ -17,10 +19,10 @@ const TOOLTIP =
   'Spot bạc thế giới (USD/tr.oz) quy đổi VND/lượng như vàng. Mua/bán quốc tế ước lượng ± quanh mid. Spread: VN giữa − thế giới giữa.'
 
 type Props = {
-  active: boolean
+  silver: UseSilverPriceResult
 }
 
-export function SilverDashboard({ active }: Props) {
+export function SilverDashboard({ silver }: Props) {
   const {
     worldBuyUsdPerOz,
     worldSellUsdPerOz,
@@ -44,8 +46,9 @@ export function SilverDashboard({ active }: Props) {
     listingsWarning,
     updatedAt,
     vnSilverMissing,
+    listings,
     refresh,
-  } = useSilverPrice(active)
+  } = silver
 
   const { format: fmtLevel, formatSigned: fmtSignedLevel, unitHint } = useFormatPrice('silver')
 
@@ -91,7 +94,7 @@ export function SilverDashboard({ active }: Props) {
           : '—'
 
   return (
-    <div title={TOOLTIP}>
+    <div title={TOOLTIP} className="flex flex-col gap-2">
       <AssetCard
         type="silver"
         title="Bạc"
@@ -148,7 +151,7 @@ export function SilverDashboard({ active }: Props) {
 
         {vnSilverMissing && !listingsError ? (
           <p className="rounded-md border border-slate-600/50 bg-slate-900/60 px-2 py-1.5 text-xs text-slate-400">
-            Bảng niêm yết chưa có dòng bạc VN. Khi API thêm mã, spread sẽ tự hiện. Giá thế giới vẫn dùng được.
+            Bảng niêm yết chưa có dữ liệu (giabac.phuquygroup.vn). Giá thế giới XAG vẫn dùng được — thử Làm mới.
           </p>
         ) : null}
 
@@ -214,6 +217,56 @@ export function SilverDashboard({ active }: Props) {
           <p className="text-xs text-slate-500">Chưa đủ dữ liệu hiển thị.</p>
         ) : null}
       </AssetCard>
+
+      {listings.length > 0 ? (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Niêm yết trong nước (Phú Quý)
+          </h2>
+          {updatedAt ? (
+            <p className="text-[10px] text-slate-600">Cập nhật từ trang: {updatedAt}</p>
+          ) : null}
+          <ul className="flex flex-col gap-2">
+            {listings.map((row) => {
+              const rowSpread = row.sell - row.buy
+              const badge = row.code.startsWith('PQBAC') ? 'PQBAC' : row.code
+              return (
+                <li key={row.code}>
+                  <AssetCard
+                    dense
+                    type="silver"
+                    title={`${row.brand} — Bạc`}
+                    badge={badge}
+                    meta={row.name}
+                    hidePrice
+                    price=""
+                  >
+                    <div className={`${goldQuotePanelClass} space-y-2`}>
+                      <p className="text-[9px] font-medium uppercase tracking-wide text-slate-500">
+                        Niêm yết · {row.unit}
+                      </p>
+                      <div className={goldBidAskGridClass}>
+                        <span className="self-start pt-0.5 text-left text-slate-500">Mua</span>
+                        <span className="text-right text-emerald-400">{fmtLevel(row.buy)}</span>
+                        <span className="self-start pt-0.5 text-left text-slate-500">Bán</span>
+                        <span className="text-right text-base font-semibold text-rose-400">
+                          {fmtLevel(row.sell)}
+                        </span>
+                        <span className="text-slate-500" title={GOLD_BUY_SELL_GAP_TOOLTIP}>
+                          {GOLD_BUY_SELL_GAP_LABEL}
+                        </span>
+                        <span className="text-right text-slate-300">
+                          {fmtLevel(rowSpread)}
+                        </span>
+                      </div>
+                    </div>
+                  </AssetCard>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      ) : null}
     </div>
   )
 }

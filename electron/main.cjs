@@ -21,7 +21,8 @@ function createWindow() {
     width: 360,
     height: 600,
     minWidth: 300,
-    minHeight: 400,
+    /** Đủ cao cho header h-14 + tab + nội dung + footer kéo — tránh chồng lấn */
+    minHeight: 480,
     frame: false,
     resizable: true,
     alwaysOnTop: true,
@@ -85,4 +86,23 @@ ipcMain.handle('electron-set-always-on-top', (event, on) => {
 ipcMain.handle('electron-is-always-on-top', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender)
   return win ? win.isAlwaysOnTop() : false
+})
+
+/** Fetch URL text từ main process — bypass CORS cho renderer */
+ipcMain.handle('electron-fetch-text', async (event, url) => {
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+    return { ok: false, status: 0, text: '' }
+  }
+  try {
+    const res = await fetch(url, {
+      headers: {
+        Accept: 'text/html',
+        'User-Agent': 'Mozilla/5.0 (compatible; CryptoWidget/1.1; Electron)',
+      },
+    })
+    const text = await res.text()
+    return { ok: res.ok, status: res.status, text }
+  } catch {
+    return { ok: false, status: 0, text: '' }
+  }
 })

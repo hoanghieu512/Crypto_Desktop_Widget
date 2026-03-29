@@ -10,4 +10,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   setAlwaysOnTop: (on) => ipcRenderer.invoke('electron-set-always-on-top', on),
   isAlwaysOnTop: () => ipcRenderer.invoke('electron-is-always-on-top'),
+  fetchText: (url) => ipcRenderer.invoke('electron-fetch-text', url),
 })
