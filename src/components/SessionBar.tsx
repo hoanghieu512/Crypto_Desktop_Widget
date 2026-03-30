@@ -15,8 +15,8 @@ export const SessionBox = memo(function SessionBox({ name, active }: SessionBoxP
     <span
       className={
         active
-          ? 'rounded px-1.5 py-0.5 text-xs font-semibold tracking-wide bg-blue-500/20 text-blue-300'
-          : 'rounded px-1.5 py-0.5 text-xs font-semibold tracking-wide bg-slate-800 text-slate-400'
+          ? 'rounded px-1.5 py-0.5 text-xs font-medium tracking-wide bg-bx-elevated text-bx-yellow'
+          : 'rounded px-1.5 py-0.5 text-xs font-medium tracking-wide bg-bx-input text-bx-muted'
       }
     >
       {name}

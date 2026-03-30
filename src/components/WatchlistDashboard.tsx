@@ -32,15 +32,19 @@ import {
   useRealtimePrice,
   type FuturesMarkSnapshot,
   type Market,
+  type MarketSocketSlice,
   type PriceMapEntry,
+  type RealtimeConnectionStatus,
   type WatchPriceEntry,
 } from '../hooks/useRealtimePrice'
 import { useFormat } from '../providers/FormatProvider'
 import { normalizeCryptoPairInput } from '../utils/cryptoPair'
-import { AssetCard } from './AssetCard'
-import { ConnectionStatusDot } from './ConnectionStatusDot'
 import { FuturesSimulatorPanel } from './FuturesSimulatorPanel'
 import { SessionBar } from './SessionBar'
+
+export type WatchlistDashboardProps = {
+  onConnectionStatusChange?: (status: RealtimeConnectionStatus) => void
+}
 
 const STORAGE_KEY = 'crypto-watchlist-v2'
 
@@ -179,7 +183,7 @@ function CryptoAmount({
   const n = Number(raw)
   if (!Number.isFinite(n)) return <span className={`${className} ${transitionClass}`.trim()}>{raw}</span>
   return (
-    <span className={`tabular-nums ${className} ${transitionClass}`.trim()}>
+    <span className={`font-price ${className} ${transitionClass}`.trim()}>
       {formatPrice(n, 'crypto')}
     </span>
   )
@@ -198,7 +202,7 @@ function FundingEta({ ts }: { ts: number }) {
   const s = Math.floor((left % 60_000) / 1000)
   const pad = (n: number) => n.toString().padStart(2, '0')
   return (
-    <span className="font-mono text-slate-400">
+    <span className="font-mono text-[10px] text-bx-muted">
       {left <= 0 ? 'Đang chờ block…' : `${pad(h)}:${pad(m)}:${pad(s)}`}
     </span>
   )
@@ -220,12 +224,12 @@ function DragHandle({
       type="button"
       ref={setActivatorNodeRef}
       disabled={disabled}
-      className="app-no-drag mt-0.5 shrink-0 cursor-grab touch-none rounded-md border border-slate-700/80 bg-slate-800/80 p-1.5 text-slate-400 hover:border-violet-500/40 hover:bg-slate-800 hover:text-slate-200 active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-40"
+      className="app-no-drag flex h-14 w-7 shrink-0 cursor-grab touch-none items-center justify-center text-bx-muted hover:text-bx-secondary active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-40"
       aria-label="Kéo để đổi thứ tự"
       {...attributes}
       {...listeners}
     >
-      <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+      <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
         <circle cx="6" cy="5" r="1.5" />
         <circle cx="14" cy="5" r="1.5" />
         <circle cx="6" cy="10" r="1.5" />
@@ -301,6 +305,84 @@ function clampFloatPos(
   }
 }
 
+function WatchlistColumnHeader() {
+  const cell = 'text-[10px] font-medium uppercase tracking-[0.06em] text-bx-muted'
+  return (
+    <div
+      className="flex shrink-0 items-center border-b border-bx-border-subtle bg-bx-header-row px-4 py-1.5"
+      role="row"
+    >
+      <div className="w-7 shrink-0" aria-hidden />
+      <div className={`min-w-0 flex-1 ${cell}`}>Symbol</div>
+      <div className={`w-[120px] shrink-0 text-right ${cell}`}>Giá</div>
+      <div className={`w-[130px] shrink-0 text-right ${cell}`}>Funding / Δ24h</div>
+      <div className="w-[88px] shrink-0" aria-hidden />
+    </div>
+  )
+}
+
+function WatchlistSocketLine({
+  label,
+  slice,
+}: {
+  label: string
+  slice: MarketSocketSlice
+}) {
+  if (slice.streams.length === 0) return null
+  const ok = slice.status === 'open'
+  const warn =
+    slice.status === 'reconnecting' ||
+    slice.status === 'connecting' ||
+    slice.status === 'closed'
+  const dot = ok ? 'bg-bx-green' : warn ? 'bg-bx-yellow' : 'bg-bx-muted'
+  const statusText = ok
+    ? 'OK'
+    : slice.status === 'reconnecting'
+      ? 'tái kết nối'
+      : slice.status
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-[11px] text-bx-secondary"
+      title={slice.lastError ?? undefined}
+    >
+      <span className={`size-1.5 shrink-0 rounded-full ${dot}`} aria-hidden />
+      {label}: {statusText}
+    </span>
+  )
+}
+
+function WatchlistStatusBar({
+  spot,
+  futures,
+}: {
+  spot: MarketSocketSlice
+  futures: MarketSocketSlice
+}) {
+  if (spot.streams.length === 0 && futures.streams.length === 0) return null
+  return (
+    <div
+      className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-t border-bx-border-subtle bg-bx-base px-4 py-1.5"
+      role="status"
+    >
+      <WatchlistSocketLine label="Spot" slice={spot} />
+      <WatchlistSocketLine label="Futures" slice={futures} />
+    </div>
+  )
+}
+
+function pctClass(n: number): string {
+  if (!Number.isFinite(n)) return 'text-bx-muted'
+  if (n > 0) return 'text-bx-green'
+  if (n < 0) return 'text-bx-red'
+  return 'text-bx-muted'
+}
+
+function fmtSignedPct(n: number): string {
+  if (!Number.isFinite(n)) return '—'
+  const sign = n > 0 ? '+' : ''
+  return `${sign}${n.toFixed(2)}%`
+}
+
 type RowProps = {
   item: WatchItem
   market: Market
@@ -314,6 +396,11 @@ type RowProps = {
   dragDisabled?: boolean
   onOpenFuturesSimulator?: (detail: { itemId: string; symbolUpper: string }) => void
 }
+
+const badgeBase = 'rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none'
+
+const actionBtnClass =
+  'app-no-drag rounded px-2 py-1 text-[11px] font-medium bg-bx-elevated text-bx-secondary transition-colors duration-[120ms] hover:text-bx-primary'
 
 const WatchlistRow = memo(function WatchlistRow({
   item,
@@ -352,31 +439,49 @@ const WatchlistRow = memo(function WatchlistRow({
     entry != null && stalenessClock - entry.lastUpdated > PRICE_STALE_AFTER_MS
   const priceTransition = 'transition-[color,opacity] duration-300 ease-out'
 
-  const badgeClassName =
-    market === 'spot'
-      ? 'bg-sky-500/15 text-sky-200 ring-sky-500/30'
-      : 'bg-amber-500/15 text-amber-100 ring-amber-500/30'
+  const rowHover =
+    'border-b border-bx-border-subtle transition-[background-color] duration-[120ms] hover:bg-bx-surface'
 
-  const draggingCls = isDragging
-    ? 'scale-[1.02] shadow-lg shadow-black/40 ring-1 ring-violet-500/35'
-    : ''
+  const symbolBadges =
+    market === 'futures' ? (
+      <>
+        <span className={`${badgeBase} bg-bx-fut-badge-bg text-bx-purple`}>FUTURES</span>
+        <span className={`${badgeBase} border border-bx-mark-border bg-transparent text-bx-mark-text`}>
+          MARK
+        </span>
+      </>
+    ) : (
+      <>
+        <span className={`${badgeBase} bg-bx-spot-badge-bg text-bx-spot-blue`}>SPOT</span>
+        <span className={`${badgeBase} border border-bx-last-border bg-transparent text-bx-last-text`}>
+          LAST
+        </span>
+      </>
+    )
 
-  const actions = (
-    <div className="flex shrink-0 items-center gap-1">
+  const actionsCol = (
+    <div className="flex w-[88px] shrink-0 items-center justify-end gap-1">
       {mode === 'perCoin' ? (
         <button
           type="button"
-          className="app-no-drag rounded-md border border-slate-600 px-2 py-1 text-[10px] text-slate-300 transition-colors duration-200 hover:border-white/20 hover:text-slate-100"
-          onClick={() => onToggleRowMarket(item.id)}
+          className={actionBtnClass}
+          title="Đổi Spot / Futures cho dòng này"
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleRowMarket(item.id)
+          }}
         >
-          Đổi SPOT/FUT
+          {market === 'spot' ? 'FUT' : 'SPOT'}
         </button>
       ) : null}
       <button
         type="button"
-        className="app-no-drag shrink-0 rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-400 transition-colors duration-200 hover:border-white/15 hover:text-rose-200"
+        className={actionBtnClass}
         aria-label={`Xóa ${display}`}
-        onClick={() => onRemove(item.id)}
+        onClick={(e) => {
+          e.stopPropagation()
+          onRemove(item.id)
+        }}
       >
         Xóa
       </button>
@@ -392,19 +497,29 @@ const WatchlistRow = memo(function WatchlistRow({
     />
   )
 
+  const symbolBlock = (
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      <span title={hint ?? undefined} className="truncate text-[13px] font-semibold text-bx-primary">
+        {display}
+      </span>
+      <span className="flex shrink-0 flex-wrap items-center gap-1">{symbolBadges}</span>
+    </div>
+  )
+
   if (!entry) {
     return (
-      <li ref={setNodeRef} style={sortableStyle} className="flex gap-2">
-        {handle}
-        <AssetCard
-          type="crypto"
-          className={`min-w-0 flex-1 ${draggingCls}`}
-          title={display}
-          badge={market === 'spot' ? 'Spot' : 'Futures'}
-          badgeClassName={badgeClassName}
-          action={actions}
-          price="…"
-        />
+      <li ref={setNodeRef} style={sortableStyle} className="list-none">
+        <div className={`flex h-14 shrink-0 items-center px-4 ${rowHover}`}>
+          {handle}
+          {symbolBlock}
+          <div className="w-[120px] shrink-0 text-right">
+            <span className="font-price text-[15px] text-bx-muted">…</span>
+          </div>
+          <div className="w-[130px] shrink-0 text-right">
+            <span className="text-[11px] text-bx-muted">—</span>
+          </div>
+          {actionsCol}
+        </div>
       </li>
     )
   }
@@ -414,24 +529,33 @@ const WatchlistRow = memo(function WatchlistRow({
     const pct = Number(price.priceChangePercent)
     const lastN = Number(price.lastPrice)
     return (
-      <li ref={setNodeRef} style={sortableStyle} className="flex gap-2">
-        {handle}
-        <AssetCard
-          type="crypto"
-          className={`min-w-0 flex-1 ${draggingCls}`}
-          title={display}
-          badge="Spot · Last"
-          badgeClassName={badgeClassName}
-          action={actions}
-          priceLabel="Giá"
-          price={Number.isFinite(lastN) ? lastN : '—'}
-          change={Number.isFinite(pct) ? pct : undefined}
-          changeLabel="24h"
-          priceMuted={priceStale}
-          smoothPriceUpdate={Number.isFinite(lastN)}
-        >
-          {hint ? <p className="text-[11px] text-violet-300/90">{hint}</p> : null}
-        </AssetCard>
+      <li ref={setNodeRef} style={sortableStyle} className="list-none">
+        <div className={`flex h-14 shrink-0 items-center px-4 ${rowHover}`}>
+          {handle}
+          <div className="flex min-w-0 flex-1 items-center">
+            {symbolBlock}
+            <div
+              className={`w-[120px] shrink-0 text-right ${priceStale ? 'opacity-50 ' : ''}${priceTransition}`.trim()}
+            >
+              {Number.isFinite(lastN) ? (
+                <CryptoAmount
+                  raw={price.lastPrice}
+                  className="text-[15px] text-bx-primary"
+                  transitionClass={priceTransition}
+                />
+              ) : (
+                <span className="font-price text-[15px] text-bx-muted">—</span>
+              )}
+              <div className={`text-[11px] tabular-nums ${pctClass(pct)}`.trim()}>
+                {fmtSignedPct(pct)}
+              </div>
+            </div>
+            <div className="w-[130px] shrink-0 text-right">
+              <span className="text-[11px] text-bx-muted">—</span>
+            </div>
+          </div>
+          {actionsCol}
+        </div>
       </li>
     )
   }
@@ -439,89 +563,88 @@ const WatchlistRow = memo(function WatchlistRow({
   const f: FuturesMarkSnapshot = entry.snapshot
   const fr = Number(f.fundingRate)
   const frClass =
-    !Number.isFinite(fr) ? 'text-slate-500' : fr >= 0 ? 'text-emerald-400' : 'text-rose-400'
+    !Number.isFinite(fr) ? 'text-bx-muted' : fr >= 0 ? 'text-bx-green' : 'text-bx-red'
   const markN = Number(f.markPrice)
 
-  const futuresCard = (
-    <AssetCard
-      type="crypto"
-      className={`min-w-0 flex-1 ${draggingCls}`}
-      title={display}
-      badge="Futures · Mark"
-      badgeClassName={badgeClassName}
-      action={actions}
-      priceLabel="Mark price"
-      price={Number.isFinite(markN) ? markN : '—'}
-      priceMuted={priceStale}
-      smoothPriceUpdate={Number.isFinite(markN)}
-    >
-      {hint ? <p className="text-[11px] text-violet-300/90">{hint}</p> : null}
+  const futuresMain = (
+    <>
+      {symbolBlock}
       <div
-        className={`grid gap-2 sm:grid-cols-2 ${
-          priceStale ? 'opacity-50 transition-opacity duration-300 ease-out' : ''
-        }`.trim()}
+        className={`w-[120px] shrink-0 text-right ${priceStale ? 'opacity-50 ' : ''}${priceTransition}`.trim()}
       >
+        {Number.isFinite(markN) ? (
+          <CryptoAmount
+            raw={f.markPrice}
+            className="text-[15px] text-bx-primary"
+            transitionClass={priceTransition}
+          />
+        ) : (
+          <span className="font-price text-[15px] text-bx-muted">—</span>
+        )}
         {f.indexPrice ? (
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Index</p>
+          <div className="text-[11px] text-bx-muted">
             <CryptoAmount
               raw={f.indexPrice}
-              className="font-mono text-sm text-slate-300"
+              className="text-[11px] text-bx-muted"
               transitionClass={priceTransition}
             />
           </div>
-        ) : null}
-        <div className={f.indexPrice ? 'sm:text-right' : ''}>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Funding / 8h</p>
-          <p className={`font-mono text-sm ${frClass}`}>{formatFundingRate(f.fundingRate)}</p>
-          <p className="mt-2 text-xs font-medium uppercase tracking-wide text-slate-500">Funding tiếp theo</p>
-          <p className="text-xs text-slate-400">
-            {new Date(f.nextFundingTime).toLocaleString('vi-VN')}
-          </p>
-          <p className="mt-0.5 text-[11px] text-slate-400">
-            Còn lại: <FundingEta ts={f.nextFundingTime} />
-          </p>
+        ) : (
+          <div className="text-[11px] text-bx-muted">—</div>
+        )}
+      </div>
+      <div
+        className={`w-[130px] shrink-0 text-right ${priceStale ? 'opacity-50 ' : ''}${priceTransition}`.trim()}
+      >
+        <div className={`font-price text-[13px] ${frClass}`}>{formatFundingRate(f.fundingRate)}</div>
+        <div className="mt-0.5 text-[10px] text-bx-muted">
+          <FundingEta ts={f.nextFundingTime} />
         </div>
       </div>
-    </AssetCard>
+    </>
   )
 
   return (
-    <li ref={setNodeRef} style={sortableStyle} className="flex gap-2">
-      {handle}
-      {onOpenFuturesSimulator ? (
-        <div
-          role="button"
-          tabIndex={0}
-          className="min-w-0 flex-1 rounded-2xl outline-none ring-amber-500/0 transition-[box-shadow] hover:ring-1 hover:ring-amber-500/25 focus-visible:ring-2 focus-visible:ring-amber-500/40"
-          title="Mở Futures Simulator"
-          onClick={(e) => {
-            const el = e.target as HTMLElement
-            if (el.closest('button')) return
-            onOpenFuturesSimulator({
-              itemId: item.id,
-              symbolUpper: display,
-            })
-          }}
-          onKeyDown={(e) => {
-            if (e.key !== 'Enter' && e.key !== ' ') return
-            e.preventDefault()
-            onOpenFuturesSimulator({
-              itemId: item.id,
-              symbolUpper: display,
-            })
-          }}
-        >
-          {futuresCard}
-        </div>
-      ) : (
-        futuresCard
-      )}
+    <li ref={setNodeRef} style={sortableStyle} className="list-none">
+      <div className={`flex h-14 shrink-0 items-center px-4 ${rowHover}`}>
+        {handle}
+        {onOpenFuturesSimulator ? (
+          <div
+            role="button"
+            tabIndex={0}
+            className="flex min-w-0 flex-1 cursor-pointer items-center outline-none focus-visible:ring-2 focus-visible:ring-bx-yellow/40"
+            title="Mở Futures Simulator"
+            onClick={(e) => {
+              const el = e.target as HTMLElement
+              if (el.closest('button')) return
+              onOpenFuturesSimulator({
+                itemId: item.id,
+                symbolUpper: display,
+              })
+            }}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' && e.key !== ' ') return
+              e.preventDefault()
+              onOpenFuturesSimulator({
+                itemId: item.id,
+                symbolUpper: display,
+              })
+            }}
+          >
+            {futuresMain}
+          </div>
+        ) : (
+          <div className="flex min-w-0 flex-1 items-center">{futuresMain}</div>
+        )}
+        {actionsCol}
+      </div>
     </li>
   )
 })
 
-export function WatchlistDashboard() {
+export function WatchlistDashboard({
+  onConnectionStatusChange,
+}: WatchlistDashboardProps = {}) {
   const initial = useMemo(() => loadState(), [])
   const [marketMode, setMarketMode] = useState<MarketMode>(initial.marketMode)
   const [globalMarket, setGlobalMarket] = useState<Market>(initial.globalMarket)
@@ -581,6 +704,10 @@ export function WatchlistDashboard() {
     useRealtimePrice(watchEntries)
 
   useEffect(() => {
+    onConnectionStatusChange?.(connectionStatus)
+  }, [connectionStatus, onConnectionStatusChange])
+
+  useEffect(() => {
     const id = window.setInterval(() => setStalenessClock(Date.now()), 1000)
     return () => clearInterval(id)
   }, [])
@@ -622,31 +749,6 @@ export function WatchlistDashboard() {
     })
     setDraft('')
   }, [draft, draftMarket, globalMarket, marketMode])
-
-  const statusLine = useMemo(() => {
-    const parts: string[] = []
-    if (spot.streams.length > 0) {
-      const st =
-        spot.status === 'open'
-          ? 'OK'
-          : spot.status === 'reconnecting'
-            ? 'tái kết nối'
-            : spot.status
-      parts.push(`Spot: ${st}`)
-    }
-    if (futures.streams.length > 0) {
-      const st =
-        futures.status === 'open'
-          ? 'OK'
-          : futures.status === 'reconnecting'
-            ? 'tái kết nối'
-            : futures.status
-      parts.push(`Futures: ${st}`)
-    }
-    return parts.join(' · ')
-  }, [spot, futures])
-
-  const errTitle = [spot.lastError, futures.lastError].filter(Boolean).join(' | ')
 
   const rootRef = useRef<HTMLDivElement>(null)
   const simulatorCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -862,74 +964,34 @@ export function WatchlistDashboard() {
     }
   }
 
-  const statusToneClass = (() => {
-    if (connectionStatus === 'error') return 'text-rose-400'
-    if (connectionStatus === 'reconnecting' || connectionStatus === 'connecting') {
-      return 'text-amber-400'
-    }
-    const spotOk = spot.streams.length === 0 || spot.status === 'open'
-    const futOk = futures.streams.length === 0 || futures.status === 'open'
-    if (spotOk && futOk) return 'text-emerald-400'
-    return 'text-amber-400'
-  })()
-
   const segWrap =
-    'inline-flex shrink-0 rounded-md border border-slate-700/90 bg-slate-950/60 p-0.5 shadow-inner shadow-black/20'
-  const segBtn =
-    'rounded px-2 py-0.5 text-[11px] font-medium transition-colors duration-150'
-  const segBtnOnBlue = 'bg-blue-500/25 text-blue-100 shadow-sm'
-  const segBtnOff = 'text-slate-500 hover:text-slate-300'
-  const segBtnOnSpot = 'bg-sky-500/25 text-sky-100 shadow-sm'
-  const segBtnOnFut = 'bg-amber-500/25 text-amber-100 shadow-sm'
-
-  const cryptoHeaderStatus = (
-    <div className="flex max-w-[min(100%,15rem)] flex-col items-end gap-0.5 text-right">
-      <div className="flex items-center justify-end gap-1.5">
-        <ConnectionStatusDot status={connectionStatus} spot={spot} futures={futures} />
-        {loading && watchEntries.length > 0 ? (
-          <span className="text-[10px] text-slate-500">Đang tải…</span>
-        ) : null}
-      </div>
-      <span
-        className={`text-xs leading-tight ${statusToneClass}`}
-        title={errTitle || undefined}
-      >
-        {statusLine || 'Chờ'}
-      </span>
-    </div>
-  )
+    'inline-flex shrink-0 rounded-md border border-bx-border-medium bg-bx-input p-0.5'
+  const segBtn = 'rounded px-2 py-0.5 text-[11px] font-medium transition-colors duration-150'
+  const segBtnOn = 'bg-bx-border-medium text-bx-primary'
+  const segBtnOff = 'text-bx-secondary hover:text-bx-primary'
 
   return (
     <div
       ref={rootRef}
-      className="app-no-drag relative flex h-full min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden px-3 pb-4 pt-1"
+      className="app-no-drag relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-bx-base"
     >
       <div
-        className={`flex min-h-0 flex-1 flex-col gap-2 overscroll-contain ${
+        className={`flex min-h-0 flex-1 flex-col overscroll-contain ${
           isSimulatorOpen ? 'overflow-hidden' : 'overflow-y-auto'
         }`}
       >
-        <AssetCard
-          type="crypto"
-          title="Crypto"
-          badge="Binance"
-          hidePrice
-          price=""
-          className="shrink-0"
-          action={cryptoHeaderStatus}
-        >
+        <div className="shrink-0 border-b border-bx-border-subtle bg-bx-surface px-4 py-3">
           <form
-            className="space-y-1"
             onSubmit={(e) => {
               e.preventDefault()
               add()
             }}
           >
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
               <div className={segWrap} role="group" aria-label="Phạm vi danh sách">
                 <button
                   type="button"
-                  className={`${segBtn} ${marketMode === 'global' ? segBtnOnBlue : segBtnOff}`}
+                  className={`${segBtn} ${marketMode === 'global' ? segBtnOn : segBtnOff}`}
                   title="Áp dụng Spot/Futures cho cả danh sách"
                   onClick={() => setMarketMode('global')}
                 >
@@ -937,7 +999,7 @@ export function WatchlistDashboard() {
                 </button>
                 <button
                   type="button"
-                  className={`${segBtn} ${marketMode === 'perCoin' ? segBtnOnBlue : segBtnOff}`}
+                  className={`${segBtn} ${marketMode === 'perCoin' ? segBtnOn : segBtnOff}`}
                   title="Mỗi coin chọn Spot hoặc Futures riêng"
                   onClick={() => setMarketMode('perCoin')}
                 >
@@ -948,14 +1010,14 @@ export function WatchlistDashboard() {
                 <div className={segWrap} role="group" aria-label="Thị trường áp dụng">
                   <button
                     type="button"
-                    className={`${segBtn} ${globalMarket === 'spot' ? segBtnOnSpot : segBtnOff}`}
+                    className={`${segBtn} ${globalMarket === 'spot' ? segBtnOn : segBtnOff}`}
                     onClick={() => setGlobalMarket('spot')}
                   >
                     Spot
                   </button>
                   <button
                     type="button"
-                    className={`${segBtn} ${globalMarket === 'futures' ? segBtnOnFut : segBtnOff}`}
+                    className={`${segBtn} ${globalMarket === 'futures' ? segBtnOn : segBtnOff}`}
                     title="Giá mark futures"
                     onClick={() => setGlobalMarket('futures')}
                   >
@@ -966,14 +1028,14 @@ export function WatchlistDashboard() {
                 <div className={segWrap} role="group" aria-label="Loại cho coin mới">
                   <button
                     type="button"
-                    className={`${segBtn} ${draftMarket === 'spot' ? segBtnOnSpot : segBtnOff}`}
+                    className={`${segBtn} ${draftMarket === 'spot' ? segBtnOn : segBtnOff}`}
                     onClick={() => setDraftMarket('spot')}
                   >
                     Spot
                   </button>
                   <button
                     type="button"
-                    className={`${segBtn} ${draftMarket === 'futures' ? segBtnOnFut : segBtnOff}`}
+                    className={`${segBtn} ${draftMarket === 'futures' ? segBtnOn : segBtnOff}`}
                     title="Giá mark futures"
                     onClick={() => setDraftMarket('futures')}
                   >
@@ -981,50 +1043,69 @@ export function WatchlistDashboard() {
                   </button>
                 </div>
               )}
-              <input
-                id="wl-symbol-input"
-                className="app-no-drag min-w-[6.5rem] min-h-[2rem] flex-1 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-xs text-slate-100 outline-none ring-blue-500/0 focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/35"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onBlur={() => {
-                  const n = normalizeCryptoPairInput(draft)
-                  if (n) setDraft(n)
-                }}
-                placeholder="btc / btcusdt"
-                autoComplete="off"
-                spellCheck={false}
-                aria-label="Mã cặp"
-              />
+              <div className="relative min-h-[2.25rem] min-w-[8rem] flex-1">
+                <svg
+                  className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-bx-muted"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  aria-hidden
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="M21 21l-4.3-4.3" />
+                </svg>
+                <input
+                  id="wl-symbol-input"
+                  className="app-no-drag h-full w-full rounded-md border border-bx-border-medium bg-bx-input py-1.5 pl-8 pr-2 font-mono text-xs text-bx-primary outline-none ring-0 focus:border-bx-border-medium"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onBlur={() => {
+                    const n = normalizeCryptoPairInput(draft)
+                    if (n) setDraft(n)
+                  }}
+                  placeholder="btc / btcusdt"
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-label="Mã cặp"
+                />
+              </div>
               <button
                 type="submit"
-                className="app-no-drag shrink-0 rounded-md border border-blue-500/45 bg-blue-500/15 px-3 py-1 text-xs font-semibold text-blue-100 transition-colors duration-200 hover:border-blue-400/55 hover:bg-blue-500/25"
+                className="app-no-drag shrink-0 rounded-md bg-bx-yellow px-3 py-2 text-xs font-semibold text-bx-add-fg transition-opacity hover:opacity-95"
               >
                 Thêm
               </button>
+              {loading && watchEntries.length > 0 ? (
+                <span className="text-[10px] text-bx-muted">Đang tải…</span>
+              ) : null}
             </div>
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0">
-              <span className="font-mono text-[10px] tracking-tight text-slate-500">BTC → BTCUSDT</span>
-              <span className="text-[10px] text-slate-500">Chọn loại trước khi thêm</span>
+            <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-0">
+              <span className="font-mono text-[10px] tracking-tight text-bx-muted">
+                BTC → BTCUSDT
+              </span>
+              <span className="text-[10px] text-bx-muted">Chọn loại trước khi thêm</span>
             </div>
           </form>
-        </AssetCard>
+        </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <p className="text-[10px] leading-tight text-slate-500">
+        <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-bx-border-subtle bg-bx-base px-4 py-2">
+          <p className="text-[10px] font-medium leading-tight text-bx-muted">
             Mỗi coin có thể chuyển SPOT / FUTURES
           </p>
           <SessionBar />
         </div>
 
-        <div className="relative min-h-0">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
           {connectionStatus === 'reconnecting' && items.length > 0 ? (
             <div
               className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-2 pt-1"
               role="status"
             >
-              <div className="flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-950/90 px-3 py-1 text-[10px] font-medium text-amber-100/95 shadow-md backdrop-blur-sm">
+              <div className="flex items-center gap-2 rounded-full border border-bx-border-medium bg-bx-elevated/95 px-3 py-1 text-[10px] font-medium text-bx-yellow shadow-md backdrop-blur-sm">
                 <span
-                  className="inline-block size-3 shrink-0 animate-spin rounded-full border-2 border-amber-400/40 border-t-transparent"
+                  className="inline-block size-3 shrink-0 animate-spin rounded-full border-2 border-bx-yellow/50 border-t-transparent"
                   aria-hidden
                 />
                 Đang kết nối lại…
@@ -1037,44 +1118,45 @@ export function WatchlistDashboard() {
             onDragEnd={handleDragEnd}
           >
             <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-              <ul className="flex flex-col gap-2">
-            {items.length === 0 ? (
-              <li className="list-none">
-                <AssetCard type="crypto" dense title="Watchlist" badge="Trống" hidePrice price="">
-                  <p className="text-xs text-slate-500">Thêm cặp để xem giá realtime.</p>
-                </AssetCard>
-              </li>
-            ) : (
-              items.map((item) => {
-                const m = effectiveMarket(item, marketMode, globalMarket)
-                const sym =
-                  normalizeCryptoPairInput(item.symbol) || item.symbol.trim().toLowerCase()
-                const pk = priceMapKey(sym, m)
-                const entry = prices[pk]
-                return (
-                  <WatchlistRow
-                    key={item.id}
-                    item={item}
-                    market={m}
-                    mode={marketMode}
-                    entry={entry}
-                    prices={prices}
-                    stalenessClock={stalenessClock}
-                    onRemove={remove}
-                    onToggleRowMarket={toggleRowMarket}
-                    dragDisabled={loading}
-                    onOpenFuturesSimulator={
-                      m === 'futures' ? openFuturesSimulator : undefined
-                    }
-                  />
-                )
-              })
-            )}
+              <WatchlistColumnHeader />
+              <ul className="flex min-h-0 flex-1 flex-col">
+                {items.length === 0 ? (
+                  <li className="list-none border-b border-bx-border-subtle px-4 py-6 text-center text-[12px] text-bx-secondary">
+                    Thêm cặp để xem giá realtime.
+                  </li>
+                ) : (
+                  items.map((item) => {
+                    const m = effectiveMarket(item, marketMode, globalMarket)
+                    const sym =
+                      normalizeCryptoPairInput(item.symbol) || item.symbol.trim().toLowerCase()
+                    const pk = priceMapKey(sym, m)
+                    const entry = prices[pk]
+                    return (
+                      <WatchlistRow
+                        key={item.id}
+                        item={item}
+                        market={m}
+                        mode={marketMode}
+                        entry={entry}
+                        prices={prices}
+                        stalenessClock={stalenessClock}
+                        onRemove={remove}
+                        onToggleRowMarket={toggleRowMarket}
+                        dragDisabled={loading}
+                        onOpenFuturesSimulator={
+                          m === 'futures' ? openFuturesSimulator : undefined
+                        }
+                      />
+                    )
+                  })
+                )}
               </ul>
             </SortableContext>
           </DndContext>
         </div>
       </div>
+
+      <WatchlistStatusBar spot={spot} futures={futures} />
 
       {isSimulatorOpen && simulatorSession ? (
         <div

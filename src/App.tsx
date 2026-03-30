@@ -4,6 +4,7 @@ import { FormatControls } from './components/FormatControls'
 import { PreciousMetalsPanel } from './components/PreciousMetalsPanel'
 import { SilverPanel } from './components/SilverPanel'
 import { WatchlistDashboard } from './components/WatchlistDashboard'
+import type { RealtimeConnectionStatus } from './hooks/useRealtimePrice'
 
 type Tab = 'crypto' | 'gold' | 'silver'
 
@@ -14,7 +15,12 @@ function isElectron(): boolean {
 export default function App() {
   const [tab, setTab] = useState<Tab>('crypto')
   const [alwaysOnTop, setAlwaysOnTop] = useState(true)
+  const [cryptoConn, setCryptoConn] = useState<RealtimeConnectionStatus | null>(null)
   const electron = isElectron()
+
+  useEffect(() => {
+    if (tab !== 'crypto') setCryptoConn(null)
+  }, [tab])
 
   useEffect(() => {
     if (!electron || !window.electronAPI?.isAlwaysOnTop) return
@@ -30,31 +36,41 @@ export default function App() {
 
   return (
     <FormatProvider>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-950 shadow-2xl shadow-black/50">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-bx-border-medium bg-bx-base shadow-2xl shadow-black/50">
         <header
-          className={`app-drag grid h-14 shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-900/90 px-2 ${
+          className={`app-drag grid h-14 shrink-0 items-center gap-2 border-b border-bx-border-subtle bg-bx-surface px-2 ${
             electron ? 'grid-cols-[auto_minmax(0,1fr)_auto]' : 'grid-cols-[auto_minmax(0,1fr)]'
           }`}
         >
-          <nav className="app-no-drag flex shrink-0 items-center gap-1" aria-label="Tab chính">
+          <nav
+            className="app-no-drag flex h-full shrink-0 items-stretch gap-1"
+            aria-label="Tab chính"
+          >
             <button
               type="button"
               onClick={() => setTab('crypto')}
-              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              className={`flex items-center gap-2 border-b-2 px-3 text-sm font-medium transition-colors duration-150 ${
                 tab === 'crypto'
-                  ? 'bg-violet-500/20 text-violet-100'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                  ? 'border-bx-yellow text-bx-yellow'
+                  : 'border-transparent text-bx-secondary hover:text-bx-primary'
               }`}
             >
+              {tab === 'crypto' && cryptoConn === 'live' ? (
+                <span
+                  className="size-1.5 shrink-0 rounded-full bg-bx-green"
+                  title="Realtime: live"
+                  aria-hidden
+                />
+              ) : null}
               Crypto
             </button>
             <button
               type="button"
               onClick={() => setTab('gold')}
-              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              className={`flex items-center border-b-2 px-3 text-sm font-medium transition-colors duration-150 ${
                 tab === 'gold'
-                  ? 'bg-amber-500/15 text-amber-100'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                  ? 'border-bx-yellow text-bx-yellow'
+                  : 'border-transparent text-bx-secondary hover:text-bx-primary'
               }`}
             >
               Vàng
@@ -62,10 +78,10 @@ export default function App() {
             <button
               type="button"
               onClick={() => setTab('silver')}
-              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              className={`flex items-center border-b-2 px-3 text-sm font-medium transition-colors duration-150 ${
                 tab === 'silver'
-                  ? 'bg-slate-500/20 text-slate-100'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                  ? 'border-bx-yellow text-bx-yellow'
+                  : 'border-transparent text-bx-secondary hover:text-bx-primary'
               }`}
             >
               Bạc
@@ -82,8 +98,8 @@ export default function App() {
                 type="button"
                 aria-label={alwaysOnTop ? 'Tắt luôn trên cùng' : 'Bật luôn trên cùng'}
                 title={alwaysOnTop ? 'Luôn trên cùng: bật' : 'Luôn trên cùng: tắt'}
-                className={`flex h-8 w-9 items-center justify-center rounded-lg hover:bg-slate-800 ${
-                  alwaysOnTop ? 'text-amber-300' : 'text-slate-500'
+                className={`flex h-8 w-9 items-center justify-center rounded-lg hover:bg-bx-elevated ${
+                  alwaysOnTop ? 'text-bx-yellow' : 'text-bx-muted'
                 }`}
                 onClick={toggleAlwaysOnTop}
               >
@@ -103,7 +119,7 @@ export default function App() {
               <button
                 type="button"
                 aria-label="Thu nhỏ"
-                className="flex h-8 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                className="flex h-8 w-9 items-center justify-center rounded-lg text-bx-secondary hover:bg-bx-elevated hover:text-bx-primary"
                 onClick={() => window.electronAPI?.minimize()}
               >
                 ─
@@ -111,7 +127,7 @@ export default function App() {
               <button
                 type="button"
                 aria-label="Đóng"
-                className="flex h-8 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-500/20 hover:text-rose-200"
+                className="flex h-8 w-9 items-center justify-center rounded-lg text-bx-secondary hover:bg-bx-red/15 hover:text-bx-red"
                 onClick={() => window.electronAPI?.close()}
               >
                 ✕
@@ -122,7 +138,7 @@ export default function App() {
 
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {tab === 'crypto' ? (
-            <WatchlistDashboard />
+            <WatchlistDashboard onConnectionStatusChange={setCryptoConn} />
           ) : tab === 'gold' ? (
             <PreciousMetalsPanel active={tab === 'gold'} />
           ) : (
@@ -131,12 +147,12 @@ export default function App() {
         </main>
 
         {electron ? (
-          <p className="app-drag shrink-0 border-t border-slate-800/80 px-3 py-1.5 text-center text-[10px] text-slate-600">
+          <p className="app-drag shrink-0 border-t border-bx-border-subtle px-3 py-1.5 text-center text-[10px] text-bx-muted">
             Kéo vùng tiêu đề (không phải nút điều khiển giá) để di chuyển · nút ghim luôn trên cùng
           </p>
         ) : (
-          <p className="app-no-drag shrink-0 border-t border-slate-800/80 px-3 py-1.5 text-center text-[10px] text-slate-600">
-            Desktop: <span className="font-mono text-slate-500">npm run dev:electron</span>
+          <p className="app-no-drag shrink-0 border-t border-bx-border-subtle px-3 py-1.5 text-center text-[10px] text-bx-muted">
+            Desktop: <span className="font-mono text-bx-secondary">npm run dev:electron</span>
           </p>
         )}
       </div>
