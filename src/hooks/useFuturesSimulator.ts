@@ -25,10 +25,22 @@ export type UseFuturesSimulatorResult = {
   side: FuturesSide
   setSide: Dispatch<SetStateAction<FuturesSide>>
   metrics: FuturesSimulatorMetrics
+  reset: () => void
 }
 
 function parseInputNumber(raw: string): number | null {
-  const n = Number(String(raw).replace(/,/g, '').trim())
+  const s0 = String(raw).trim().replace(/\s+/g, '')
+  // Support locales:
+  // - "808,8"  -> 808.8  (comma decimal)
+  // - "1,234.5" -> 1234.5 (comma thousands)
+  // - "1.234,5" -> 1234.5 (dot thousands + comma decimal)
+  const s =
+    s0.includes(',') && s0.includes('.')
+      ? s0.replace(/,/g, '')
+      : s0.includes(',') && !s0.includes('.')
+        ? s0.replace(/,/g, '.')
+        : s0
+  const n = Number(s)
   return Number.isFinite(n) ? n : null
 }
 
@@ -59,12 +71,83 @@ function formatEntrySeed(price: number): string {
   return price.toFixed(maxFrac).replace(/\.?0+$/, '')
 }
 
+type SavedSimState = {
+  entryPrice: string
+  leverage: string
+  positionSize: string
+  tp: string
+  sl: string
+  side: FuturesSide
+}
+
+const STORAGE_KEY = 'futures-simulator-state-v1'
+
+function normalizeSymbolKey(raw: string): string {
+  return raw.trim().toUpperCase()
+}
+
+function loadAll(): Record<string, SavedSimState> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object') return {}
+    return parsed as Record<string, SavedSimState>
+  } catch {
+    return {}
+  }
+}
+
+function saveAll(next: Record<string, SavedSimState>) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadSavedState(symbol: string): SavedSimState | null {
+  const k = normalizeSymbolKey(symbol)
+  if (!k) return null
+  const all = loadAll()
+  const s = all[k]
+  if (!s) return null
+  if (typeof s !== 'object') return null
+  return {
+    entryPrice: typeof s.entryPrice === 'string' ? s.entryPrice : '',
+    leverage: typeof s.leverage === 'string' ? s.leverage : '10',
+    positionSize: typeof s.positionSize === 'string' ? s.positionSize : '100',
+    tp: typeof s.tp === 'string' ? s.tp : '',
+    sl: typeof s.sl === 'string' ? s.sl : '',
+    side: s.side === 'SHORT' ? 'SHORT' : 'LONG',
+  }
+}
+
+export function saveState(symbol: string, state: SavedSimState) {
+  const k = normalizeSymbolKey(symbol)
+  if (!k) return
+  const all = loadAll()
+  all[k] = state
+  saveAll(all)
+}
+
+export function clearSavedState(symbol: string) {
+  const k = normalizeSymbolKey(symbol)
+  if (!k) return
+  const all = loadAll()
+  if (!(k in all)) return
+  delete all[k]
+  saveAll(all)
+}
+
 export function useFuturesSimulator(options: {
   currentPrice: number
   /** When this changes (e.g. first watchlist row), re-seed entry from market if possible */
   symbolKey: string
+  /** Used for persisting simulator inputs per symbol */
+  symbol: string
 }): UseFuturesSimulatorResult {
-  const { currentPrice, symbolKey } = options
+  const { currentPrice, symbolKey, symbol } = options
 
   const [entryPrice, setEntryPrice] = useState('')
   const [leverage, setLeverage] = useState('10')
@@ -74,10 +157,29 @@ export function useFuturesSimulator(options: {
   const [side, setSide] = useState<FuturesSide>('LONG')
 
   const entrySeededRef = useRef(false)
+  const savedLoadedRef = useRef(false)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     entrySeededRef.current = false
+    savedLoadedRef.current = false
   }, [symbolKey])
+
+  // Load persisted state per symbol (if exists). This runs on open/reopen and on symbol switch.
+  useEffect(() => {
+    const k = normalizeSymbolKey(symbol)
+    if (!k) return
+    const saved = loadSavedState(k)
+    if (!saved) return
+    setEntryPrice(saved.entryPrice)
+    setLeverage(saved.leverage)
+    setPositionSize(saved.positionSize)
+    setTp(saved.tp)
+    setSl(saved.sl)
+    setSide(saved.side)
+    savedLoadedRef.current = true
+    entrySeededRef.current = true
+  }, [symbol, symbolKey])
 
   useEffect(() => {
     if (entrySeededRef.current) return
@@ -88,6 +190,32 @@ export function useFuturesSimulator(options: {
     }, 0)
     return () => window.clearTimeout(id)
   }, [symbolKey, currentPrice])
+
+  // Persist inputs (debounced).
+  useEffect(() => {
+    const k = normalizeSymbolKey(symbol)
+    if (!k) return
+    if (saveTimerRef.current != null) window.clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = window.setTimeout(() => {
+      saveTimerRef.current = null
+      saveState(k, { entryPrice, leverage, positionSize, tp, sl, side })
+    }, 500)
+    return () => {
+      if (saveTimerRef.current != null) window.clearTimeout(saveTimerRef.current)
+    }
+  }, [symbol, entryPrice, leverage, positionSize, tp, sl, side])
+
+  const reset = () => {
+    setEntryPrice('')
+    setLeverage('10')
+    setPositionSize('100')
+    setTp('')
+    setSl('')
+    setSide('LONG')
+    clearSavedState(symbol)
+    entrySeededRef.current = false
+    savedLoadedRef.current = false
+  }
 
   const metrics = useMemo((): FuturesSimulatorMetrics => {
     const entry = parseInputNumber(entryPrice)
@@ -150,5 +278,6 @@ export function useFuturesSimulator(options: {
     side,
     setSide,
     metrics,
+    reset,
   }
 }

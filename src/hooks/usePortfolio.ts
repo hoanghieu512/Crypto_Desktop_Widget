@@ -17,20 +17,39 @@ function safeParseState(raw: string | null): PortfolioState {
       .filter((p) => typeof p.id === 'string' && typeof p.symbol === 'string')
       .map((p) => {
         const side: FuturesPositionSide = p.side === 'SHORT' ? 'SHORT' : 'LONG'
+        const entryPrice = Number(p.entryPrice)
+        const quantity = Number(p.quantity)
+        const lev = Number(p.leverage)
+        const source = 'manual' as const
+        const legacyNotional = Number((p as any).notional)
+        const marginRaw = Number((p as any).margin)
+        const margin =
+          Number.isFinite(marginRaw) && marginRaw > 0
+            ? marginRaw
+            : Number.isFinite(legacyNotional) && legacyNotional > 0
+              ? legacyNotional
+              : Number.isFinite(entryPrice) && entryPrice > 0 && Number.isFinite(quantity) && quantity > 0 && Number.isFinite(lev) && lev > 0
+                ? (entryPrice * quantity) / lev
+                : Number.NaN
         return {
-        id: String(p.id),
-        symbol: String(p.symbol),
+          id: String(p.id),
+          symbol: String(p.symbol),
+          source,
           side,
-        entryPrice: Number(p.entryPrice),
-        quantity: Number(p.quantity),
-        leverage: Number(p.leverage),
-        createdAt: Number(p.createdAt ?? Date.now()),
+          entryPrice,
+          margin,
+          quantity,
+          leverage: lev,
+          createdAt: Number(p.createdAt ?? Date.now()),
+          notes: typeof (p as any).notes === 'string' ? String((p as any).notes) : undefined,
         }
       })
       .filter(
         (p) =>
           Number.isFinite(p.entryPrice) &&
           p.entryPrice > 0 &&
+          Number.isFinite(p.margin) &&
+          p.margin > 0 &&
           Number.isFinite(p.quantity) &&
           p.quantity > 0 &&
           Number.isFinite(p.leverage) &&
@@ -74,10 +93,25 @@ export type PortfolioTotals = {
 
 export type UsePortfolioResult = {
   positions: FuturesPosition[]
+  manualPositions: FuturesPosition[]
+  syncedPositions: FuturesPosition[]
   computed: PositionComputed[]
   totals: PortfolioTotals
   loading: boolean
-  addPosition: (p: Omit<FuturesPosition, 'id' | 'createdAt'>) => void
+  addPosition: (p: {
+    symbol: string
+    side: FuturesPositionSide
+    entryPrice: number
+    leverage: number
+    /** Optional (can be derived from notional/entry). */
+    quantity?: number
+    /** Optional (collateral USDT). */
+    margin?: number
+    /** Optional (notional USDT). */
+    notional?: number
+  }) => void
+  setSyncedPositions: (items: FuturesPosition[]) => void
+  updatePositionNote: (id: string, notes: string) => void
   removePosition: (id: string) => void
   updatePosition: (id: string, patch: Partial<Omit<FuturesPosition, 'id' | 'createdAt'>>) => void
   clearAll: () => void
@@ -88,22 +122,44 @@ function newId(): string {
 }
 
 export function usePortfolio(enabled: boolean): UsePortfolioResult {
-  const [positions, setPositions] = useState<FuturesPosition[]>(() => {
+  const [manual, setManual] = useState<FuturesPosition[]>(() => {
     try {
-      return safeParseState(localStorage.getItem(STORAGE_KEY)).positions
+      // Persist only manual positions.
+      return safeParseState(localStorage.getItem(STORAGE_KEY)).positions.map((p) => ({
+        ...p,
+        source: 'manual' as const,
+      }))
     } catch {
       return []
     }
   })
+  const [synced, setSynced] = useState<FuturesPosition[]>([])
+
+  const manualPositions = manual
+  const syncedPositions = synced
+  const positions = useMemo(
+    () => uniqById([...(syncedPositions ?? []), ...(manualPositions ?? [])]),
+    [syncedPositions, manualPositions],
+  )
+
+  const setSyncedPositions = useCallback((items: FuturesPosition[]) => {
+    const cleaned = items
+      .filter(Boolean)
+      .map((p) => ({ ...p, source: 'synced' as const }))
+    setSynced(uniqById(cleaned))
+  }, [])
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ positions } satisfies PortfolioState))
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ positions: manualPositions } satisfies PortfolioState),
+      )
       window.dispatchEvent(new CustomEvent('portfolio:change'))
     } catch {
       /* ignore */
     }
-  }, [positions])
+  }, [manualPositions])
 
   const entries = useMemo((): WatchPriceEntry[] => {
     if (!enabled) return []
@@ -130,8 +186,9 @@ export function usePortfolio(enabled: boolean): UsePortfolioResult {
         e?.market === 'futures' ? Number.parseFloat(e.snapshot.markPrice) : Number.NaN
       const markPrice = Number.isFinite(mark) && mark > 0 ? mark : null
 
-      const notional = pos.entryPrice * pos.quantity
-      const margin = pos.leverage > 0 ? notional / pos.leverage : Number.NaN
+      const margin = pos.margin
+      const posNotional =
+        Number.isFinite(margin) && margin > 0 && pos.leverage > 0 ? margin * pos.leverage : Number.NaN
 
       const markMissing = markPrice == null
       const effectiveMark = markPrice ?? pos.entryPrice
@@ -151,7 +208,7 @@ export function usePortfolio(enabled: boolean): UsePortfolioResult {
         position: pos,
         markPrice,
         markMissing,
-        notional: Number.isFinite(notional) ? notional : 0,
+        notional: Number.isFinite(posNotional) ? posNotional : 0,
         margin: Number.isFinite(margin) ? margin : 0,
         unrealizedPnl,
         roe,
@@ -169,23 +226,83 @@ export function usePortfolio(enabled: boolean): UsePortfolioResult {
     return { totalMargin, totalUnrealizedPnl, totalRoe }
   }, [computed])
 
-  const addPosition = useCallback((p: Omit<FuturesPosition, 'id' | 'createdAt'>) => {
-    const next: FuturesPosition = {
-      ...p,
-      id: newId(),
-      symbol: p.symbol.trim().toUpperCase(),
-      createdAt: Date.now(),
-    }
-    setPositions((cur) => uniqById([next, ...cur]))
-  }, [])
+  const addPosition = useCallback(
+    (p: {
+      symbol: string
+      side: FuturesPositionSide
+      entryPrice: number
+      leverage: number
+      quantity?: number
+      margin?: number
+      notional?: number
+    }) => {
+      const symbol = p.symbol.trim().toUpperCase()
+      const entryPrice = Number(p.entryPrice)
+      const leverage = Number(p.leverage)
+      const qRaw = p.quantity != null ? Number(p.quantity) : Number.NaN
+      const mRaw = p.margin != null ? Number(p.margin) : Number.NaN
+      const nRaw = p.notional != null ? Number(p.notional) : Number.NaN
+
+      const quantity =
+        Number.isFinite(qRaw) && qRaw > 0
+          ? qRaw
+          : Number.isFinite(nRaw) && nRaw > 0 && Number.isFinite(entryPrice) && entryPrice > 0
+            ? nRaw / entryPrice
+            : Number.isFinite(mRaw) && mRaw > 0 && Number.isFinite(leverage) && leverage > 0 && Number.isFinite(entryPrice) && entryPrice > 0
+              ? (mRaw * leverage) / entryPrice
+            : Number.NaN
+
+      const notional =
+        Number.isFinite(nRaw) && nRaw > 0
+          ? nRaw
+          : Number.isFinite(quantity) && quantity > 0 && Number.isFinite(entryPrice) && entryPrice > 0
+            ? entryPrice * quantity
+            : Number.NaN
+
+      const margin =
+        Number.isFinite(mRaw) && mRaw > 0
+          ? mRaw
+          : Number.isFinite(notional) && notional > 0 && Number.isFinite(leverage) && leverage > 0
+            ? notional / leverage
+            : Number.NaN
+
+      if (
+        !symbol ||
+        !Number.isFinite(entryPrice) ||
+        entryPrice <= 0 ||
+        !Number.isFinite(leverage) ||
+        leverage <= 0 ||
+        !Number.isFinite(quantity) ||
+        quantity <= 0 ||
+        !Number.isFinite(margin) ||
+        margin <= 0
+      ) {
+        return
+      }
+
+      const next: FuturesPosition = {
+        id: newId(),
+        createdAt: Date.now(),
+        symbol,
+        source: 'manual',
+        side: p.side === 'SHORT' ? 'SHORT' : 'LONG',
+        entryPrice,
+        margin,
+        quantity,
+        leverage,
+      }
+      setManual((cur) => uniqById([next, ...cur]))
+    },
+    [],
+  )
 
   const removePosition = useCallback((id: string) => {
-    setPositions((cur) => cur.filter((p) => p.id !== id))
+    setManual((cur) => cur.filter((p) => p.id !== id))
   }, [])
 
   const updatePosition = useCallback(
     (id: string, patch: Partial<Omit<FuturesPosition, 'id' | 'createdAt'>>) => {
-      setPositions((cur) =>
+      setManual((cur) =>
         cur.map((p) => {
           if (p.id !== id) return p
           const sym = patch.symbol != null ? String(patch.symbol).trim().toUpperCase() : p.symbol
@@ -201,15 +318,31 @@ export function usePortfolio(enabled: boolean): UsePortfolioResult {
   )
 
   const clearAll = useCallback(() => {
-    setPositions([])
+    setManual([])
+  }, [])
+
+  const updatePositionNote = useCallback((id: string, notes: string) => {
+    const next = String(notes ?? '').slice(0, 500)
+    setManual((cur) =>
+      cur.map((p) => {
+        if (p.id !== id) return p
+        if (p.source === 'synced') return p
+        const trimmed = next.trim()
+        return { ...p, notes: trimmed.length === 0 ? undefined : trimmed }
+      }),
+    )
   }, [])
 
   return {
     positions,
+    manualPositions,
+    syncedPositions,
     computed,
     totals,
     loading: rt.loading,
     addPosition,
+    setSyncedPositions,
+    updatePositionNote,
     removePosition,
     updatePosition,
     clearAll,

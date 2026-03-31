@@ -45,6 +45,8 @@ import { SessionBar } from './SessionBar'
 
 export type WatchlistDashboardProps = {
   onConnectionStatusChange?: (status: RealtimeConnectionStatus) => void
+  onPricesBySymbolChange?: (prices: Record<string, number | null>) => void
+  onQuickAddAlert?: (symbolUpper: string, currentPrice: number | null) => void
 }
 
 const STORAGE_KEY = 'crypto-watchlist-v2'
@@ -327,6 +329,7 @@ function WatchlistColumnHeader() {
           <div className={`shrink-0 text-right ${cell}`}>Δ24h / Fund</div>
         </div>
       </div>
+      <div className="w-8 shrink-0" aria-hidden />
       <div className="w-[76px] shrink-0" aria-hidden />
     </div>
   )
@@ -406,6 +409,7 @@ type RowProps = {
   onToggleRowMarket: (id: string) => void
   dragDisabled?: boolean
   onOpenFuturesSimulator?: (detail: { itemId: string; symbolUpper: string }) => void
+  onQuickAddAlert?: (symbolUpper: string, currentPrice: number | null) => void
 }
 
 const badgeBase = 'rounded px-1 py-0.5 text-[9px] font-semibold leading-none sm:px-1.5 sm:text-[10px]'
@@ -434,6 +438,7 @@ const WatchlistRow = memo(function WatchlistRow({
   onToggleRowMarket,
   dragDisabled,
   onOpenFuturesSimulator,
+  onQuickAddAlert,
 }: RowProps) {
   const {
     attributes,
@@ -455,6 +460,32 @@ const WatchlistRow = memo(function WatchlistRow({
   const sym = item.symbol.trim().toLowerCase()
   const display = item.symbol.trim().toUpperCase()
   const hint = basisHint(sym, market, prices)
+  const curPrice =
+    entry?.market === 'spot'
+      ? Number(entry.snapshot.lastPrice)
+      : entry?.market === 'futures'
+        ? Number((entry.snapshot as FuturesMarkSnapshot).markPrice)
+        : Number.NaN
+  const curPriceSafe = Number.isFinite(curPrice) && curPrice > 0 ? curPrice : null
+
+  const alertCol = (
+    <div className="w-8 shrink-0 self-center flex items-center justify-center">
+      {onQuickAddAlert ? (
+        <button
+          type="button"
+          className="app-no-drag rounded-md px-1.5 py-1 text-[12px] text-bx-secondary hover:bg-bx-elevated hover:text-bx-primary"
+          title="Set alert"
+          onClick={(e) => {
+            e.stopPropagation()
+            onQuickAddAlert(display, curPriceSafe)
+          }}
+          aria-label={`Set alert for ${display}`}
+        >
+          🔔
+        </button>
+      ) : null}
+    </div>
+  )
 
   const priceStale =
     entry != null && stalenessClock - entry.lastUpdated > PRICE_STALE_AFTER_MS
@@ -564,6 +595,7 @@ const WatchlistRow = memo(function WatchlistRow({
       >
         {handle}
         {body}
+        {alertCol}
         {actionsCol}
       </div>
     </li>
@@ -715,6 +747,8 @@ const WatchlistRow = memo(function WatchlistRow({
 
 export function WatchlistDashboard({
   onConnectionStatusChange,
+  onPricesBySymbolChange,
+  onQuickAddAlert,
 }: WatchlistDashboardProps = {}) {
   const initial = useMemo(() => loadState(), [])
   const [marketMode, setMarketMode] = useState<MarketMode>(initial.marketMode)
@@ -777,6 +811,27 @@ export function WatchlistDashboard({
   useEffect(() => {
     onConnectionStatusChange?.(connectionStatus)
   }, [connectionStatus, onConnectionStatusChange])
+
+  useEffect(() => {
+    if (!onPricesBySymbolChange) return
+    const out: Record<string, number | null> = {}
+    for (const item of items) {
+      const symLower = normalizeCryptoPairInput(item.symbol) || item.symbol.trim().toLowerCase()
+      const upper = symLower.toUpperCase()
+      const s = prices[priceMapKey(symLower, 'spot')]
+      const f = prices[priceMapKey(symLower, 'futures')]
+      const spotLast = s?.market === 'spot' ? Number(s.snapshot.lastPrice) : Number.NaN
+      const futMark = f?.market === 'futures' ? Number(f.snapshot.markPrice) : Number.NaN
+      const v =
+        Number.isFinite(spotLast) && spotLast > 0
+          ? spotLast
+          : Number.isFinite(futMark) && futMark > 0
+            ? futMark
+            : null
+      out[upper] = v
+    }
+    onPricesBySymbolChange(out)
+  }, [items, prices, onPricesBySymbolChange])
 
   useEffect(() => {
     const id = window.setInterval(() => setStalenessClock(Date.now()), 1000)
@@ -1218,6 +1273,7 @@ export function WatchlistDashboard({
                         onOpenFuturesSimulator={
                           m === 'futures' ? openFuturesSimulator : undefined
                         }
+                    onQuickAddAlert={onQuickAddAlert}
                       />
                     )
                   })

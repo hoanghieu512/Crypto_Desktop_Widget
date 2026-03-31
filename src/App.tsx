@@ -7,6 +7,9 @@ import { WatchlistDashboard } from './components/WatchlistDashboard'
 import { FloatingPortfolioButton } from './components/FloatingPortfolioButton'
 import { PortfolioSidePanel } from './components/PortfolioSidePanel'
 import type { RealtimeConnectionStatus } from './hooks/useRealtimePrice'
+import { usePriceAlerts } from './hooks/usePriceAlerts'
+import { AlertsPanel } from './components/AlertsPanel'
+import { AlertToast } from './components/AlertToast'
 
 type Tab = 'crypto' | 'gold' | 'silver'
 
@@ -19,12 +22,18 @@ export default function App() {
   const [alwaysOnTop, setAlwaysOnTop] = useState(true)
   const [cryptoConn, setCryptoConn] = useState<RealtimeConnectionStatus | null>(null)
   const [portfolioOpen, setPortfolioOpen] = useState(false)
+  const [alertsOpen, setAlertsOpen] = useState(false)
+  const [alertPrefill, setAlertPrefill] = useState<{ symbol?: string; currentPrice?: number | null }>({})
+  const [alertPrices, setAlertPrices] = useState<Record<string, number | null>>({})
   const electron = isElectron()
 
   useEffect(() => {
     if (tab !== 'crypto') setCryptoConn(null)
     if (tab !== 'crypto') setPortfolioOpen(false)
+    if (tab !== 'crypto') setAlertsOpen(false)
   }, [tab])
+
+  const alerts = usePriceAlerts({ pricesBySymbol: alertPrices })
 
   useEffect(() => {
     if (!electron || !window.electronAPI?.isAlwaysOnTop) return
@@ -142,7 +151,14 @@ export default function App() {
 
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {tab === 'crypto' ? (
-            <WatchlistDashboard onConnectionStatusChange={setCryptoConn} />
+            <WatchlistDashboard
+              onConnectionStatusChange={setCryptoConn}
+              onPricesBySymbolChange={setAlertPrices}
+              onQuickAddAlert={(symbol, currentPrice) => {
+                setAlertPrefill({ symbol, currentPrice })
+                setAlertsOpen(true)
+              }}
+            />
           ) : tab === 'gold' ? (
             <PreciousMetalsPanel active={tab === 'gold'} />
           ) : (
@@ -152,10 +168,42 @@ export default function App() {
 
         {tab === 'crypto' ? (
           <>
+            <button
+              type="button"
+              className="app-no-drag fixed bottom-[84px] right-5 z-[130] flex items-center gap-2 rounded-full border border-bx-border-medium bg-bx-elevated px-3 py-2 text-[12px] font-semibold text-bx-primary shadow-lg shadow-black/50 hover:bg-bx-surface"
+              onClick={() => {
+                setAlertPrefill({})
+                setAlertsOpen(true)
+              }}
+              title="Price alerts"
+            >
+              <span aria-hidden>🔔</span>
+              Alerts
+              {alerts.activeEnabledCount > 0 ? (
+                <span className="ml-1 rounded-full bg-bx-yellow px-2 py-0.5 text-[11px] font-semibold text-bx-add-fg">
+                  {alerts.activeEnabledCount}
+                </span>
+              ) : null}
+            </button>
             <FloatingPortfolioButton onClick={() => setPortfolioOpen(true)} />
             <PortfolioSidePanel isOpen={portfolioOpen} onClose={() => setPortfolioOpen(false)} />
           </>
         ) : null}
+
+        <AlertsPanel
+          open={alertsOpen}
+          onClose={() => setAlertsOpen(false)}
+          alerts={alerts.alerts}
+          soundEnabled={alerts.settings.soundEnabled}
+          setSoundEnabled={alerts.setSoundEnabled}
+          onAdd={alerts.addAlert}
+          onToggle={(id, enabled) => alerts.updateAlert(id, { enabled })}
+          onDelete={alerts.deleteAlert}
+          onReset={alerts.resetAlert}
+          prefill={alertPrefill}
+        />
+
+        <AlertToast items={alerts.toasts} onDismiss={alerts.dismissToast} />
 
         {electron ? (
           <p className="app-drag min-w-0 shrink-0 border-t border-bx-border-subtle px-2 py-1.5 text-center text-[10px] leading-tight break-words text-bx-muted">

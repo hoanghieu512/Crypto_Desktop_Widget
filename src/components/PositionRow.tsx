@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import type { PositionComputed } from '../hooks/usePortfolio'
 import { useFormat } from '../providers/FormatProvider'
+import { formatSize } from '../utils/formatNumber'
 
 function fmtSignedPct(p: number): string {
   const sign = p > 0 ? '+' : ''
@@ -11,9 +12,10 @@ export type PositionRowProps = {
   row: PositionComputed
   onDelete: (id: string) => void
   onEdit?: (id: string) => void
+  onUpdateNote?: (id: string, notes: string) => void
 }
 
-export const PositionRow = memo(function PositionRow({ row, onDelete, onEdit }: PositionRowProps) {
+export const PositionRow = memo(function PositionRow({ row, onDelete, onEdit, onUpdateNote }: PositionRowProps) {
   const { formatPrice, formatPriceSigned } = useFormat()
   const p = row.position
 
@@ -63,8 +65,32 @@ export const PositionRow = memo(function PositionRow({ row, onDelete, onEdit }: 
   }, [row.markPrice, row.markMissing, p.entryPrice, formatPrice])
 
   const onDeleteClick = () => {
+    if (p.source === 'synced') return
     const ok = window.confirm(`Delete ${p.symbol} ${p.side}?`)
     if (ok) onDelete(p.id)
+  }
+
+  const isManual = p.source !== 'synced'
+  const hasNote = isManual && typeof p.notes === 'string' && p.notes.trim().length > 0
+  const notePreview = hasNote ? p.notes!.trim().slice(0, 100) + (p.notes!.trim().length > 100 ? '…' : '') : ''
+  const [noteOpen, setNoteOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(() => (typeof p.notes === 'string' ? p.notes : ''))
+  useEffect(() => {
+    // keep draft in sync when row updates
+    setDraft(typeof p.notes === 'string' ? p.notes : '')
+  }, [p.notes])
+
+  const canEditNote = isManual && onUpdateNote != null
+  const saveNote = () => {
+    if (!canEditNote) return
+    onUpdateNote(p.id, draft)
+    setEditing(false)
+    setNoteOpen(true)
+  }
+  const cancelEdit = () => {
+    setDraft(typeof p.notes === 'string' ? p.notes : '')
+    setEditing(false)
   }
 
   return (
@@ -77,12 +103,105 @@ export const PositionRow = memo(function PositionRow({ row, onDelete, onEdit }: 
               {p.side}
             </span>
             <span className={levBadge}>{p.leverage.toFixed(0)}x</span>
+            {canEditNote ? (
+              <button
+                type="button"
+                className={`app-no-drag rounded-md px-1.5 py-1 text-[12px] ${
+                  hasNote ? 'text-bx-yellow hover:bg-bx-elevated' : 'text-bx-muted hover:bg-bx-elevated hover:text-bx-secondary'
+                }`}
+                title={hasNote ? notePreview : 'Add note'}
+                onClick={() => {
+                  setNoteOpen((v) => !v)
+                  if (!hasNote) setEditing(true)
+                }}
+                aria-label={hasNote ? 'View note' : 'Add note'}
+              >
+                📝
+              </button>
+            ) : null}
+            {p.source === 'synced' ? (
+              <span className="shrink-0 rounded bg-bx-elevated px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-bx-secondary">
+                Binance
+              </span>
+            ) : null}
             {row.markMissing ? (
               <span className="shrink-0 rounded bg-bx-input px-1.5 py-0.5 text-meta text-amber-200/80" title="Mark price chưa có — dùng entry làm fallback">
                 !
               </span>
             ) : null}
           </div>
+
+          {canEditNote && noteOpen ? (
+            <div className="mt-2 rounded-xl border border-bx-border-subtle bg-bx-base/40 px-3 py-2">
+              {editing ? (
+                <div className="app-vstack-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[12px] font-semibold text-bx-primary">Note</p>
+                    <p className="text-[11px] font-mono text-bx-muted">{Math.min(500, draft.length)}/500</p>
+                  </div>
+                  <textarea
+                    className="app-no-drag w-full resize-none rounded-lg border border-bx-border-medium bg-bx-input px-2 py-2 text-[12px] text-bx-primary outline-none focus:ring-1 focus:ring-white/10"
+                    rows={4}
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value.slice(0, 500))}
+                    placeholder="Add trading notes... (thesis, exit plan, SL/TP, etc.)"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        e.preventDefault()
+                        cancelEdit()
+                      }
+                      const isSave = (e.key === 'Enter' && (e.metaKey || e.ctrlKey))
+                      if (isSave) {
+                        e.preventDefault()
+                        saveNote()
+                      }
+                    }}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      className="app-no-drag rounded-lg border border-bx-border-medium bg-bx-input px-3 py-1.5 text-[12px] font-semibold text-bx-secondary hover:text-bx-primary"
+                      onClick={cancelEdit}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="app-no-drag rounded-lg bg-bx-yellow px-3 py-1.5 text-[12px] font-semibold text-bx-add-fg disabled:opacity-60"
+                      onClick={saveNote}
+                      disabled={draft.length > 500}
+                      title="Cmd/Ctrl+Enter to save"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start justify-between gap-2">
+                  <p className="whitespace-pre-wrap text-[12px] text-bx-secondary">
+                    {hasNote ? p.notes!.trim() : 'No note.'}
+                  </p>
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      className="app-no-drag rounded-lg border border-bx-border-medium bg-bx-input px-2 py-1 text-[12px] font-semibold text-bx-secondary hover:text-bx-primary"
+                      onClick={() => setEditing(true)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="app-no-drag rounded-lg border border-bx-border-medium bg-bx-input px-2 py-1 text-[12px] font-semibold text-bx-secondary hover:text-bx-primary"
+                      onClick={() => setNoteOpen(false)}
+                      aria-label="Close note"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
 
           <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-label text-bx-secondary">
             <div className="flex justify-between gap-2">
@@ -94,12 +213,22 @@ export const PositionRow = memo(function PositionRow({ row, onDelete, onEdit }: 
               <span className="font-mono tabular-nums text-bx-secondary">{markLabel}</span>
             </div>
             <div className="flex justify-between gap-2">
-              <span className="text-bx-muted">Qty</span>
-              <span className="font-mono tabular-nums text-bx-secondary">{p.quantity}</span>
+              <span className="text-bx-muted">Notional</span>
+              <span className="font-mono tabular-nums text-bx-secondary">
+                {formatPrice(row.notional, 'crypto')}
+              </span>
             </div>
             <div className="flex justify-between gap-2">
               <span className="text-bx-muted">Margin</span>
-              <span className="font-mono tabular-nums text-bx-secondary">{formatPrice(row.margin, 'crypto')}</span>
+              <span className="font-mono tabular-nums text-bx-secondary">
+                {formatPrice(p.margin, 'crypto')}
+              </span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-bx-muted">Size</span>
+              <span className="font-mono tabular-nums text-bx-secondary">
+                {formatSize(p.quantity)} {p.symbol.replace(/USDT$/i, '')}
+              </span>
             </div>
           </div>
         </div>
@@ -124,13 +253,15 @@ export const PositionRow = memo(function PositionRow({ row, onDelete, onEdit }: 
                 Edit
               </button>
             ) : null}
-            <button
-              type="button"
-              className="app-no-drag rounded-lg border border-bx-border-medium bg-bx-input px-2 py-1 text-meta text-bx-secondary hover:border-bx-red/40 hover:text-bx-red"
-              onClick={onDeleteClick}
-            >
-              Delete
-            </button>
+            {p.source !== 'synced' ? (
+              <button
+                type="button"
+                className="app-no-drag rounded-lg border border-bx-border-medium bg-bx-input px-2 py-1 text-meta text-bx-secondary hover:border-bx-red/40 hover:text-bx-red"
+                onClick={onDeleteClick}
+              >
+                Delete
+              </button>
+            ) : null}
           </div>
         </div>
       </div>

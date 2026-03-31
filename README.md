@@ -17,11 +17,20 @@ Chi tiết kiến trúc, luồng dữ liệu và hạn chế: xem **[PROJECT_OVE
 ## Features
 
 - **Crypto** — watchlist cặp USDT, Spot / Futures (mark), sắp xếp kéo thả, phiên giao dịch UTC (Asia / EU / US).
-- **Futures Simulator** — mở từ dòng **Futures** trong watchlist: panel nổi (snap mép phải, có thể kéo + snap cạnh), làm mờ nền, đóng bằng **ESC** hoặc click ra ngoài. Tính PnL / TP–SL / R:R / liq gần đúng; **thang giá** (price ladder) click để điền Entry / TP / SL.
+- **Futures Simulator** — mở từ dòng **Futures** trong watchlist: panel nổi (snap mép phải, có thể kéo + snap cạnh), làm mờ nền, đóng bằng **ESC** hoặc click ra ngoài.  
+  - **Terminology (Binance-style)**: user nhập **MARGIN (USDT)**, chọn **LEVERAGE** → app tính **NOTIONAL = margin × lev** và **SIZE (coins) = notional / entry**.
+  - **State persistence** theo symbol (đóng/mở lại không mất Entry/Margin/Lev/TP/SL/Side) + nút **Reset**.
+  - **Locale number parsing**: hỗ trợ nhập `808,8` hoặc `808.8`.
 - **Vàng / Bạc (Valuation widgets)** — UI tối giản tập trung **so sánh VN vs TG** và **spread** (màu: đỏ = VN cao hơn, xanh = VN thấp hơn). Nhỏ (300–360px) chỉ hiển thị dữ liệu thiết yếu; rộng hơn có thêm so sánh/chi tiết.
 - **Niêm yết trong nước (tuỳ màn hình)** — Vàng SJC/DOJI/BTMC và bạc Phú Quý chỉ hiện chi tiết ở width đủ lớn để tránh “bảng dài” trên widget nhỏ.
 - **Định dạng** — hiển thị số theo `FormatProvider` (VND/USD, v.v.).
 - **Interaction system (subtle)** — tooltip phiên (3 dòng, delay ~140ms), hover nhẹ trên dòng watchlist và giá, focus ring tinh tế cho input, flash giá lên/xuống rất nhẹ.
+- **Portfolio (Futures)** — quản lý vị thế futures theo kiểu Binance:
+  - **Manual positions**: nhập tay (Add/Clear/Delete).
+  - **Binance API sync (READ-ONLY)**: đồng bộ từ tài khoản Binance Futures qua endpoint `GET /fapi/v2/positionRisk` (không có trade/withdraw).  
+    - Auto-refresh ~60s khi mở panel, có nút **Sync** + hiển thị trạng thái/last synced.
+    - Hỗ trợ **Mainnet/Testnet**.
+    - **Synced positions** là read-only (không có nút Delete).
 
 ---
 
@@ -34,6 +43,7 @@ Chi tiết kiến trúc, luồng dữ liệu và hạn chế: xem **[PROJECT_OVE
 | Desktop | Electron |
 | Realtime | WebSocket (Binance spot + futures mark) |
 | Lưu trữ cục bộ | `localStorage` (watchlist) |
+| Binance sync | REST (signed HMAC SHA256 via WebCrypto) |
 
 ---
 
@@ -108,3 +118,12 @@ Output: thư mục `dist/`.
 ## Tài liệu
 
 - **[PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md)** — tổng quan, kiến trúc, luồng dữ liệu (song ngữ + Mermaid).
+
+---
+
+## Security note (Binance API keys)
+
+- **Khuyến nghị**: tạo API key Binance với **READ-ONLY** (không bật Trading/Withdrawal).
+- **Lưu trữ**: key/secret được lưu **local** trong `localStorage` và được **mã hoá/obfuscate** (AES-GCM qua WebCrypto, khoá dẫn xuất theo thiết bị).  
+  Lưu ý: đây **không** phải cơ chế bảo mật tuyệt đối trong client-only app; chỉ giúp tránh nhìn lộ ngay trong storage.
+- **Không có server**: app không gửi keys tới server ngoài. Keys chỉ dùng để gọi API Binance trực tiếp từ máy bạn.

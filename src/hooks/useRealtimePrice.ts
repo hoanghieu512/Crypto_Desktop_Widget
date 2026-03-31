@@ -117,6 +117,143 @@ function buildFuturesMarkUrl(symbols: string[]): string {
   return `${FUTURES_COMBINED_WS}?streams=${path}`
 }
 
+type FuturesHubListener = {
+  id: string
+  symbolsKey: string
+  symbols: readonly string[]
+  onSnap: (snap: FuturesMarkSnapshot) => void
+  onStatus: (status: MarketWsStatus, err: string | null, streams: readonly string[]) => void
+}
+
+/**
+ * Single shared futures mark WS for the whole app.
+ * This keeps Portfolio + Simulator in sync (same tick source).
+ */
+const futuresHub = (() => {
+  let ws: WebSocket | null = null
+  let status: MarketWsStatus = 'idle'
+  let lastError: string | null = null
+  let listeners = new Map<string, FuturesHubListener>()
+
+  let desiredSymbols: string[] = []
+  let desiredKey = ''
+
+  let reconnectAttempt = 0
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  let shouldReconnect = true
+
+  const notifyStatus = () => {
+    const streams = desiredSymbols.map((s) => `${s}@markPrice`)
+    for (const l of listeners.values()) l.onStatus(status, lastError, streams)
+  }
+
+  const clearTimer = () => {
+    if (reconnectTimer != null) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+  }
+
+  const closeWs = () => {
+    if (!ws) return
+    try {
+      ws.close()
+    } catch {
+      /* ignore */
+    }
+    ws = null
+  }
+
+  const computeUnion = () => {
+    const set = new Set<string>()
+    for (const l of listeners.values()) {
+      for (const s of l.symbols) set.add(s)
+    }
+    desiredSymbols = [...set].sort()
+    desiredKey = streamKeyFromList(desiredSymbols)
+  }
+
+  const connect = () => {
+    clearTimer()
+    closeWs()
+
+    if (desiredSymbols.length === 0) {
+      status = 'idle'
+      lastError = null
+      notifyStatus()
+      return
+    }
+
+    lastError = null
+    status = reconnectAttempt > 0 ? 'reconnecting' : 'connecting'
+    notifyStatus()
+
+    const nextWs = new WebSocket(buildFuturesMarkUrl(desiredSymbols))
+    ws = nextWs
+
+    nextWs.onopen = () => {
+      reconnectAttempt = 0
+      status = 'open'
+      notifyStatus()
+    }
+
+    nextWs.onmessage = (event) => {
+      const data = parseCombinedRaw(event.data as string)
+      const snap = data ? parseFuturesMarkPayload(data) : null
+      if (!snap) return
+      for (const l of listeners.values()) l.onSnap(snap)
+    }
+
+    nextWs.onerror = () => {
+      lastError = 'Futures WebSocket error'
+      notifyStatus()
+    }
+
+    nextWs.onclose = () => {
+      ws = null
+      status = 'closed'
+      notifyStatus()
+      if (!shouldReconnect || desiredSymbols.length === 0) return
+      const delay = Math.min(30_000, 1000 * 2 ** reconnectAttempt)
+      reconnectAttempt += 1
+      status = 'reconnecting'
+      notifyStatus()
+      reconnectTimer = setTimeout(() => connect(), delay)
+    }
+  }
+
+  const refresh = () => {
+    const prevKey = desiredKey
+    computeUnion()
+    if (desiredKey !== prevKey) connect()
+    else notifyStatus()
+  }
+
+  return {
+    subscribe: (listener: FuturesHubListener) => {
+      listeners.set(listener.id, listener)
+      refresh()
+      // immediate status push
+      listener.onStatus(status, lastError, desiredSymbols.map((s) => `${s}@markPrice`))
+      return () => {
+        listeners.delete(listener.id)
+        refresh()
+      }
+    },
+    setShouldReconnect: (v: boolean) => {
+      shouldReconnect = v
+      if (!shouldReconnect) {
+        clearTimer()
+        closeWs()
+        status = desiredSymbols.length > 0 ? 'closed' : 'idle'
+        notifyStatus()
+      } else {
+        connect()
+      }
+    },
+  }
+})()
+
 function parseSpotPayload(payload: unknown): TickerSnapshot | null {
   if (!payload || typeof payload !== 'object') return null
   const d = payload as Partial<Binance24hTicker>
@@ -270,13 +407,10 @@ export function useRealtimePrice(
   const rafRef = useRef<number | null>(null)
 
   const spotReconnectAttemptRef = useRef(0)
-  const futReconnectAttemptRef = useRef(0)
   const spotReconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const futReconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const spotShouldReconnectRef = useRef(true)
-  const futShouldReconnectRef = useRef(true)
   const wsSpotRef = useRef<WebSocket | null>(null)
-  const wsFutRef = useRef<WebSocket | null>(null)
+  const futUnsubRef = useRef<null | (() => void)>(null)
 
   const flushPending = () => {
     rafRef.current = null
@@ -339,7 +473,6 @@ export function useRealtimePrice(
     }
 
     spotShouldReconnectRef.current = true
-    futShouldReconnectRef.current = true
 
     const clearSpotTimer = () => {
       if (spotReconnectTimerRef.current != null) {
@@ -347,10 +480,10 @@ export function useRealtimePrice(
         spotReconnectTimerRef.current = null
       }
     }
-    const clearFutTimer = () => {
-      if (futReconnectTimerRef.current != null) {
-        clearTimeout(futReconnectTimerRef.current)
-        futReconnectTimerRef.current = null
+    const clearFutSub = () => {
+      if (futUnsubRef.current) {
+        futUnsubRef.current()
+        futUnsubRef.current = null
       }
     }
 
@@ -418,68 +551,25 @@ export function useRealtimePrice(
       }
     }
 
-    const connectFut = () => {
+    const subFutures = () => {
       if (futuresSymbols.length === 0) return
-      clearFutTimer()
+      clearFutSub()
       setFutErr(null)
-      setFuturesStatus(
-        futReconnectAttemptRef.current > 0 ? 'reconnecting' : 'connecting',
-      )
-      const ws = new WebSocket(buildFuturesMarkUrl(futuresSymbols))
-      wsFutRef.current = ws
-
-      ws.onopen = () => {
-        futReconnectAttemptRef.current = 0
-        setFuturesStatus('open')
-      }
-
-      ws.onmessage = (event) => {
-        const data = parseCombinedRaw(event.data as string)
-        const snap = data ? parseFuturesMarkPayload(data) : null
-        if (!snap) return
-        pendingFutRef.current[snap.symbol.toLowerCase()] = snap
-        scheduleFlush()
-      }
-
-      ws.onerror = () => {
-        setFutErr('Futures WebSocket error')
-      }
-
-      ws.onclose = () => {
-        wsFutRef.current = null
-        setFuturesStatus('closed')
-        const batch = pendingFutRef.current
-        pendingFutRef.current = {}
-        if (Object.keys(batch).length > 0) {
-          setPrices((prev) => {
-            let changed = false
-            const next = { ...prev }
-            for (const [sym, snap] of Object.entries(batch)) {
-              const k = priceMapKey(sym, 'futures')
-              const old = prev[k]
-              const entry: PriceMapEntry = {
-                market: 'futures',
-                snapshot: snap,
-                lastUpdated: Date.now(),
-              }
-              if (!old || old.market !== 'futures' || !futuresEqual(old.snapshot, snap)) {
-                next[k] = entry
-                changed = true
-              }
-            }
-            return changed ? next : prev
-          })
-        }
-
-        if (!futShouldReconnectRef.current || futuresSymbols.length === 0) return
-        const attempt = futReconnectAttemptRef.current
-        const delay = Math.min(reconnectMaxMs, reconnectBaseMs * 2 ** attempt)
-        futReconnectAttemptRef.current = attempt + 1
-        setFuturesStatus('reconnecting')
-        futReconnectTimerRef.current = setTimeout(() => {
-          connectFut()
-        }, delay)
-      }
+      // Stable id per hook instance + symbol set.
+      const id = `rt-fut|${futuresKey}`
+      futUnsubRef.current = futuresHub.subscribe({
+        id,
+        symbolsKey: futuresKey,
+        symbols: futuresSymbols,
+        onSnap: (snap) => {
+          pendingFutRef.current[snap.symbol.toLowerCase()] = snap
+          scheduleFlush()
+        },
+        onStatus: (st, err) => {
+          setFuturesStatus(st)
+          setFutErr(err)
+        },
+      })
     }
 
     if (hasSpot) connectSpot()
@@ -488,7 +578,7 @@ export function useRealtimePrice(
       setSpotErr(null)
     }
 
-    if (hasFut) connectFut()
+    if (hasFut) subFutures()
     else {
       setFuturesStatus('idle')
       setFutErr(null)
@@ -496,9 +586,8 @@ export function useRealtimePrice(
 
     return () => {
       spotShouldReconnectRef.current = false
-      futShouldReconnectRef.current = false
       clearSpotTimer()
-      clearFutTimer()
+      clearFutSub()
 
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current)
@@ -513,14 +602,7 @@ export function useRealtimePrice(
         wsS.close()
       }
 
-      const wsF = wsFutRef.current
-      wsFutRef.current = null
-      if (wsF && (wsF.readyState === WebSocket.OPEN || wsF.readyState === WebSocket.CONNECTING)) {
-        wsF.close()
-      }
-
       spotReconnectAttemptRef.current = 0
-      futReconnectAttemptRef.current = 0
 
       setPrices((prev) => {
         const next = { ...prev }

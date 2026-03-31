@@ -24,7 +24,14 @@ function normalizeSymbol(raw: string): string {
 }
 
 function parsePosNumber(raw: string): number | null {
-  const n = Number(String(raw).replace(/,/g, '').trim())
+  const s0 = String(raw).trim().replace(/\s+/g, '')
+  const s =
+    s0.includes(',') && s0.includes('.')
+      ? s0.replace(/,/g, '')
+      : s0.includes(',') && !s0.includes('.')
+        ? s0.replace(/,/g, '.')
+        : s0
+  const n = Number(s)
   return Number.isFinite(n) && n > 0 ? n : null
 }
 
@@ -157,7 +164,7 @@ export const AddPositionForm = memo(function AddPositionForm({ onSubmit, onCance
             />
           </div>
           <div className="app-vstack-sm">
-            <label className={label} htmlFor="pf-qty">Qty</label>
+            <label className={label} htmlFor="pf-qty">Size</label>
             <input
               id="pf-qty"
               className={input}

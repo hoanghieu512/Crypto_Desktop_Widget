@@ -34,6 +34,7 @@ Gom **nhiều nguồn giá** (WebSocket + REST) vào **một cửa sổ nhỏ**,
 | **Backend** | *None* — public APIs & WebSockets from the client | *Không server riêng* — API công khai / WebSocket từ client |
 | **Realtime** | Binance **WebSocket** (spot ticker + futures **mark price**), batching + reconnect in hooks | **WebSocket** Binance (spot + futures mark), gộp batch + reconnect trong hook |
 | **Database** | *None* — crypto watchlist in **`localStorage`** (`crypto-watchlist-v2`) | *Không DB* — watchlist crypto trong **`localStorage`** |
+| **Portfolio sync** | Binance Futures REST (HMAC SHA256 signed via WebCrypto), read-only | Đồng bộ Portfolio qua REST Binance Futures (ký HMAC SHA256 bằng WebCrypto), chỉ đọc |
 
 ---
 
@@ -48,6 +49,7 @@ Gom **nhiều nguồn giá** (WebSocket + REST) vào **một cửa sổ nhỏ**,
 | **Formatting** — `FormatProvider`, `formatPrice` / `useFormatPrice`. | **Định dạng số** — `FormatProvider` + `useFormatPrice`. |
 | **UTC sessions** — Asia / EU / US bar with **minimal tooltip (3 lines)** and small delay. | **Phiên UTC** — thanh Asia / EU / US có **tooltip 3 dòng** (delay nhẹ). |
 | **Futures Simulator** — floating panel from **Futures** rows: snap to right (8px gap), optional drag + edge snap (~20px), backdrop + **ESC** / outside click to close; PnL / TP / SL / R:R / liq (approx.); **price ladder** (% vs mark) fills Entry / TP / SL. | **Futures Simulator** — panel nổi từ dòng Futures: snap phải, kéo/snap cạnh, đóng ESC/click nền; thang giá điền Entry/TP/SL. |
+| **Portfolio (manual + synced)** — manual futures positions + optional **Binance Futures API sync** (read-only). Synced positions are read-only; auto refresh ~60s while panel is open; supports mainnet/testnet. | **Portfolio (nhập tay + đồng bộ)** — vị thế futures nhập tay + tuỳ chọn **đồng bộ Binance API** (chỉ đọc). Dòng synced là read-only; tự refresh ~60s khi mở panel; hỗ trợ mainnet/testnet. |
 | **Scroll UX** — `index.css`: WebKit/Firefox scrollbar overlay-style (dim until interaction). | **Thanh cuộn** — ẩn / hé hiện khi tương tác (Chromium/Electron; Firefox ẩn). |
 | **Metal market utility** — `getMetalMarketStatus` (OTC-style weekend gap Fri 22:00–Sun 22:00 UTC); ready for gold/silver status UI. | **Helper phiên kim loại** — `getMetalMarketStatus` (model OTC cuối tuần UTC); sẵn cho UI Vàng/Bạc. |
 | **Electron** — always-on-top, drag regions. | **Electron** — luôn trên cùng, vùng kéo cửa sổ. |
@@ -58,6 +60,9 @@ Gom **nhiều nguồn giá** (WebSocket + REST) vào **một cửa sổ nhỏ**,
 
 **EN — Disclaimer:** Futures Simulator is a **toy model** (not exchange-grade margins / fees).  
 **VI — Lưu ý:** Futures Simulator chỉ **mô phỏng**, không thay lệnh hay margin thật trên sàn.
+
+**EN — Security note (Binance keys):** Keys are stored locally and obfuscated/encrypted (AES-GCM via WebCrypto). This is **not** a guarantee of strong secrecy in a client-only app; treat keys as sensitive. Use READ-ONLY permissions only.  
+**VI — Bảo mật (Binance keys):** Keys lưu cục bộ và được obfuscate/mã hoá (AES-GCM WebCrypto). Đây **không** phải bảo mật tuyệt đối trong app client-only; hãy xem keys là dữ liệu nhạy cảm. Chỉ dùng READ-ONLY.
 
 ---
 
@@ -111,6 +116,9 @@ flowchart LR
 - **Crypto:** WebSocket → `useRealtimePrice` → price map `(symbol, market)` → `WatchlistDashboard` / `WatchlistRow`; **Futures** rows open `FuturesSimulatorPanel` (overlay) with mark-driven ladder + `useFuturesSimulator`.  
   **Crypto:** WebSocket → `useRealtimePrice` → `WatchlistDashboard` / `WatchlistRow`; dòng **Futures** mở simulator nổi + hook tính PnL.
 
+- **Portfolio:** manual positions persisted in `localStorage` (`futures-portfolio-v1`); optional Binance sync uses signed REST `GET /fapi/v2/positionRisk` and is displayed as read-only synced positions. Mark price for PnL uses the same futures mark WebSocket hook as the simulator.  
+  **Portfolio:** vị thế nhập tay lưu trong `localStorage`; đồng bộ Binance (tuỳ chọn) gọi REST ký HMAC và hiển thị dạng synced (read-only). Mark price cho PnL dùng cùng nguồn WS futures mark như simulator.
+
 - **Gold / Silver:** `fetchGoldWithFallback`, `fetchUsdVnd`, (`fetchSilverWorldWithFallback` for silver) → `useGoldPrice` / `useSilverPrice` / `useVnMetalPrices` → dashboards.  
   **Vàng / Bạc:** `fetchGoldWithFallback`, `fetchUsdVnd`, (`fetchSilverWorldWithFallback`) → các hook tương ứng → dashboard.
 
@@ -134,6 +142,13 @@ flowchart LR
 | `src/components/FuturesSimulatorPanel.tsx` | Floating futures PnL UI + price ladder | Panel simulator + thang giá |
 | `src/components/ValuationWidget.tsx` | Shared valuation-focused card (gold/silver) | Thẻ định giá dùng chung (vàng/bạc) |
 | `src/hooks/useFuturesSimulator.ts` | Entry/leverage/size/TP/SL state + PnL math | State + công thức PnL |
+| `src/components/PortfolioDashboard.tsx` | Portfolio UI (manual + synced sections) | UI Portfolio (manual + synced) |
+| `src/components/PositionRow.tsx` | One position row (Binance-style fields) | Dòng vị thế (terminology kiểu Binance) |
+| `src/components/ApiKeySettings.tsx` | Binance API key management UI (read-only) | UI quản lý API key Binance (chỉ đọc) |
+| `src/hooks/usePortfolio.ts` | Manual portfolio state + realtime mark PnL | State portfolio + PnL theo mark |
+| `src/hooks/useBinanceSync.ts` | Read-only Binance sync + auto refresh | Đồng bộ Binance chỉ đọc + auto refresh |
+| `src/api/binanceAccount.ts` | Signed REST calls to Binance Futures | REST ký HMAC tới Binance Futures |
+| `src/utils/encryption.ts` | Local obfuscation/encryption helpers for stored keys | Helper mã hoá/obfuscate keys lưu local |
 | `src/utils/futuresPriceLadder.ts` | Adaptive tick ladder around mark | Bậc giá quanh mark |
 | `src/utils/metalMarketStatus.ts` | OTC-style open / closed / opening-soon (weekend UTC) | Trạng thái phiên spot kim loại (helper) |
 | `src/utils/tradingSession.ts` | Crypto UTC session bands (Asia/EU/US) | Phiên crypto theo giờ UTC |

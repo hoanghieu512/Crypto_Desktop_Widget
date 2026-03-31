@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useBinanceSync } from '../hooks/useBinanceSync'
 import { usePortfolio } from '../hooks/usePortfolio'
 import { useFormat } from '../providers/FormatProvider'
 import { PositionRow } from './PositionRow'
 import { AddPositionForm } from './AddPositionForm'
+import { ApiKeySettings } from './ApiKeySettings'
 
 function fmtSignedPct(p: number): string {
   const sign = p > 0 ? '+' : ''
@@ -19,9 +21,11 @@ type Props = {
 export function PortfolioDashboard({ active, embedded = false }: Props) {
   const { formatPrice, formatPriceSigned } = useFormat()
   const pf = usePortfolio(active)
+  const bx = useBinanceSync(active)
 
   const [open, setOpen] = useState(false)
   const [enter, setEnter] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -48,6 +52,52 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
     ]
   }, [formatPrice, formatPriceSigned, pf.totals.totalMargin, pnl, roe, tone])
 
+  const bxLastSync = useMemo(() => {
+    if (!bx.state.lastSyncedAt) return null
+    const sec = Math.max(0, Math.floor((Date.now() - bx.state.lastSyncedAt) / 1000))
+    if (sec <= 5) return null
+    if (sec < 60) return `${sec}s ago`
+    const m = Math.floor(sec / 60)
+    return `${m}m ago`
+  }, [bx.state.lastSyncedAt])
+
+  useEffect(() => {
+    // Map Binance positionRisk -> synced positions (read-only)
+    const raw = bx.state.rawPositions
+    if (!Array.isArray(raw)) return
+    const positions = (raw as any[])
+      .filter((p) => p && typeof p.symbol === 'string')
+      .map((p) => {
+        const symbol = String(p.symbol).trim().toUpperCase()
+        const amt = Number(String(p.positionAmt ?? '').trim())
+        const entry = Number(String(p.entryPrice ?? '').trim())
+        const lev = Number(String(p.leverage ?? '').trim())
+        const isoMargin = Number(String(p.isolatedMargin ?? '').trim())
+        if (!symbol || !Number.isFinite(amt) || amt === 0) return null
+        if (!Number.isFinite(entry) || entry <= 0) return null
+        if (!Number.isFinite(lev) || lev <= 0) return null
+        const side = amt > 0 ? 'LONG' : 'SHORT'
+        const quantity = Math.abs(amt)
+        const notional = quantity * entry
+        const margin =
+          Number.isFinite(isoMargin) && isoMargin > 0 ? isoMargin : notional / lev
+        const positionSide = typeof p.positionSide === 'string' ? String(p.positionSide) : 'BOTH'
+        return {
+          id: `bx|${symbol}|${side}|${positionSide}`,
+          symbol,
+          source: 'synced' as const,
+          side: side as 'LONG' | 'SHORT',
+          entryPrice: entry,
+          margin,
+          quantity,
+          leverage: lev,
+          createdAt: Date.now(),
+        }
+      })
+      .filter(Boolean) as any
+    pf.setSyncedPositions(positions)
+  }, [bx.state.rawPositions, pf])
+
   return (
     <div
       className={`app-no-drag relative flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden ${
@@ -67,6 +117,59 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              className="app-no-drag rounded-lg border border-bx-border-medium bg-bx-input px-3 py-2 text-label font-semibold text-bx-secondary hover:text-bx-primary"
+              onClick={() => {
+                if (!bx.state.hasCredentials) setSettingsOpen(true)
+                else void bx.syncNow()
+              }}
+              title={bx.state.hasCredentials ? 'Refresh synced positions' : 'Connect Binance'}
+              disabled={bx.state.syncing}
+            >
+              {bx.state.hasCredentials ? (bx.state.syncing ? 'Sync…' : 'Sync') : 'Connect'}
+            </button>
+            {bx.state.hasCredentials ? (
+              <div className="hidden min-[361px]:flex items-center gap-2 pr-1">
+                <span
+                  className={`size-1.5 rounded-full ${
+                    bx.state.status === 'connected'
+                      ? 'bg-bx-green'
+                      : bx.state.status === 'error'
+                        ? 'bg-bx-red'
+                        : 'bg-bx-muted'
+                  }`}
+                  aria-hidden
+                />
+                <span
+                  className={`text-[11px] ${
+                    bx.state.status === 'connected' && bx.state.lastSyncedAt != null && Date.now() - bx.state.lastSyncedAt > 5 * 60_000
+                      ? 'text-bx-yellow'
+                      : 'text-bx-muted'
+                  }`}
+                  title={
+                    bx.state.lastSyncedAt
+                      ? `Last synced: ${new Date(bx.state.lastSyncedAt).toLocaleString()}`
+                      : undefined
+                  }
+                >
+                  {bx.state.status === 'connected'
+                    ? 'Connected'
+                    : bx.state.status === 'error'
+                      ? 'Error'
+                      : '—'}
+                  {bxLastSync ? ` · ${bxLastSync}` : ''}
+                </span>
+              </div>
+            ) : null}
+            <button
+              type="button"
+              className="app-no-drag flex h-9 w-9 items-center justify-center rounded-lg border border-bx-border-medium bg-bx-input text-bx-secondary hover:text-bx-primary"
+              onClick={() => setSettingsOpen(true)}
+              title="Binance API settings"
+            >
+              ⚙
+            </button>
             <button
               type="button"
               className="app-no-drag rounded-lg bg-bx-yellow px-3 py-2 text-label font-semibold text-bx-add-fg hover:opacity-95"
@@ -113,15 +216,38 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
             </button>
           </div>
         ) : (
-          <ul className="flex flex-col gap-2">
-            {pf.computed.map((row) => (
-              <PositionRow
-                key={row.position.id}
-                row={row}
-                onDelete={pf.removePosition}
-              />
-            ))}
-          </ul>
+          <div className="app-vstack-md">
+            {pf.syncedPositions.length > 0 ? (
+              <div className="app-vstack-sm">
+                <p className="text-meta font-semibold uppercase tracking-wide text-bx-muted">Synced</p>
+                <ul className="flex flex-col gap-2">
+                  {pf.computed
+                    .filter((r) => r.position.source === 'synced')
+                    .map((row) => (
+                      <PositionRow key={row.position.id} row={row} onDelete={pf.removePosition} />
+                    ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {pf.manualPositions.length > 0 ? (
+              <div className="app-vstack-sm">
+                <p className="text-meta font-semibold uppercase tracking-wide text-bx-muted">Manual</p>
+                <ul className="flex flex-col gap-2">
+                  {pf.computed
+                    .filter((r) => r.position.source !== 'synced')
+                    .map((row) => (
+                      <PositionRow
+                        key={row.position.id}
+                        row={row}
+                        onDelete={pf.removePosition}
+                        onUpdateNote={pf.updatePositionNote}
+                      />
+                    ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
         )}
       </div>
 
@@ -165,6 +291,8 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
           document.body,
         )
       ) : null}
+
+      <ApiKeySettings open={settingsOpen} onClose={() => setSettingsOpen(false)} enabled={active} />
     </div>
   )
 }

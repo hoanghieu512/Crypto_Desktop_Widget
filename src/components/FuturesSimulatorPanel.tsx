@@ -8,6 +8,7 @@ import {
   pctVsMark,
   toLadderInputString,
 } from '../utils/futuresPriceLadder'
+import { formatSize } from '../utils/formatNumber'
 
 type LadderTargetField = 'entry' | 'tp' | 'sl'
 
@@ -43,7 +44,14 @@ function formatRatio(n: number | null): string {
 }
 
 function parseInputNumber(raw: string): number | null {
-  const n = Number(String(raw).replace(/,/g, '').trim())
+  const s0 = String(raw).trim().replace(/\s+/g, '')
+  const s =
+    s0.includes(',') && s0.includes('.')
+      ? s0.replace(/,/g, '')
+      : s0.includes(',') && !s0.includes('.')
+        ? s0.replace(/,/g, '.')
+        : s0
+  const n = Number(s)
   return Number.isFinite(n) ? n : null
 }
 
@@ -64,23 +72,9 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
   onClose,
 }: FuturesSimulatorPanelProps) {
   const key = symbolKey ?? symbol
-  const {
-    entryPrice,
-    setEntryPrice,
-    leverage,
-    setLeverage,
-    positionSize,
-    setPositionSize,
-    tp,
-    setTp,
-    sl,
-    setSl,
-    side,
-    setSide,
-    metrics,
-  } = useFuturesSimulator({ currentPrice, symbolKey: key })
+  const sim = useFuturesSimulator({ currentPrice, symbolKey: key, symbol })
 
-  const { pnl, pnlPercent, tpPnl, slPnl, riskReward, liquidationPrice } = metrics
+  const { pnl, pnlPercent, tpPnl, slPnl, riskReward, liquidationPrice } = sim.metrics
   const pf = usePortfolio(false)
 
   const [ladderTarget, setLadderTarget] = useState<LadderTargetField>('entry')
@@ -116,9 +110,9 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
 
   const applyLadderPrice = (raw: number) => {
     const s = toLadderInputString(raw)
-    if (ladderTarget === 'entry') setEntryPrice(s)
-    else if (ladderTarget === 'tp') setTp(s)
-    else setSl(s)
+    if (ladderTarget === 'entry') sim.setEntryPrice(s)
+    else if (ladderTarget === 'tp') sim.setTp(s)
+    else sim.setSl(s)
 
     const ref =
       ladderTarget === 'entry'
@@ -145,37 +139,45 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
     pnl == null ? 'text-neutral-300' : pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'
 
   const longOn =
-    side === 'LONG'
+    sim.side === 'LONG'
       ? 'bg-emerald-600/90 text-white shadow-sm shadow-emerald-900/40'
       : 'bg-neutral-800/80 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300'
   const shortOn =
-    side === 'SHORT'
+    sim.side === 'SHORT'
       ? 'bg-rose-600/90 text-white shadow-sm shadow-rose-900/40'
       : 'bg-neutral-800/80 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300'
 
-  const entryN = parseInputNumber(entryPrice)
-  const levN = parseInputNumber(leverage)
-  const sizeUsdtN = parseInputNumber(positionSize)
+  const entryN = parseInputNumber(sim.entryPrice)
+  const levN = parseInputNumber(sim.leverage)
+  const marginUsdtN = parseInputNumber(sim.positionSize)
+  const notionalUsdtN =
+    marginUsdtN != null && marginUsdtN > 0 && levN != null && levN > 0 ? marginUsdtN * levN : null
+  const sizeCoinsN =
+    notionalUsdtN != null && notionalUsdtN > 0 && entryN != null && entryN > 0
+      ? notionalUsdtN / entryN
+      : null
   const canSave =
     symbol.trim().length > 0 &&
     entryN != null &&
     entryN > 0 &&
     levN != null &&
     levN > 0 &&
-    sizeUsdtN != null &&
-    sizeUsdtN > 0
+    marginUsdtN != null &&
+    marginUsdtN > 0
 
   const saveHint = canSave ? '' : 'Fill required fields (Entry, Size, Lev)'
 
   const handleSave = () => {
-    if (!canSave || entryN == null || levN == null || sizeUsdtN == null) return
-    const quantity = sizeUsdtN / entryN
+    if (!canSave || entryN == null || levN == null || marginUsdtN == null) return
+    const notional = marginUsdtN * levN
+    const quantity = notional / entryN
     if (!Number.isFinite(quantity) || quantity <= 0) return
 
     pf.addPosition({
       symbol,
-      side,
+      side: sim.side,
       entryPrice: entryN,
+      margin: marginUsdtN,
       quantity,
       leverage: levN,
     })
@@ -323,8 +325,8 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
               inputMode="decimal"
               ref={entryRef}
               className={`${inputClass} ${pulseField === 'entry' ? 'app-input-pulse' : ''}`.trim()}
-              value={entryPrice}
-              onChange={(e) => setEntryPrice(e.target.value)}
+                value={sim.entryPrice}
+                onChange={(e) => sim.setEntryPrice(e.target.value)}
               onFocus={() => setLadderTarget('entry')}
               autoComplete="off"
               spellCheck={false}
@@ -342,14 +344,14 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
                 inputMode="decimal"
               ref={levRef}
               className={inputClass}
-                value={leverage}
-                onChange={(e) => setLeverage(e.target.value)}
+                value={sim.leverage}
+                onChange={(e) => sim.setLeverage(e.target.value)}
                 autoComplete="off"
               />
             </div>
             <div className="min-w-0">
               <label className={labelClass} htmlFor="fs-size">
-                Size
+                MARGIN
               </label>
               <input
                 id="fs-size"
@@ -357,11 +359,25 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
                 inputMode="decimal"
               ref={sizeRef}
               className={inputClass}
-                value={positionSize}
-                onChange={(e) => setPositionSize(e.target.value)}
+                value={sim.positionSize}
+                onChange={(e) => sim.setPositionSize(e.target.value)}
                 autoComplete="off"
                 title="USDT"
               />
+              <p className="mt-1 text-[11px] text-neutral-500">
+                <span className="block">
+                  Notional:{' '}
+                  <span className="font-mono tabular-nums text-neutral-300">
+                    {notionalUsdtN == null || !Number.isFinite(notionalUsdtN) ? '—' : `$${formatPrice(notionalUsdtN, 2)}`}
+                  </span>
+                </span>
+                <span className="mt-0.5 block">
+                  Size:{' '}
+                  <span className="font-mono tabular-nums text-neutral-300">
+                    {sizeCoinsN == null || !Number.isFinite(sizeCoinsN) ? '—' : formatSize(sizeCoinsN)}
+                  </span>
+                </span>
+              </p>
             </div>
           </div>
 
@@ -376,8 +392,8 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
                 inputMode="decimal"
               ref={tpRef}
               className={`${inputClass} ${pulseField === 'tp' ? 'app-input-pulse' : ''}`.trim()}
-                value={tp}
-                onChange={(e) => setTp(e.target.value)}
+                value={sim.tp}
+                onChange={(e) => sim.setTp(e.target.value)}
                 onFocus={() => setLadderTarget('tp')}
                 placeholder="—"
                 autoComplete="off"
@@ -393,8 +409,8 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
                 inputMode="decimal"
               ref={slRef}
               className={`${inputClass} ${pulseField === 'sl' ? 'app-input-pulse' : ''}`.trim()}
-                value={sl}
-                onChange={(e) => setSl(e.target.value)}
+                value={sim.sl}
+                onChange={(e) => sim.setSl(e.target.value)}
                 onFocus={() => setLadderTarget('sl')}
                 placeholder="—"
                 autoComplete="off"
@@ -407,14 +423,14 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
           <button
             type="button"
             className={`app-no-drag shrink-0 rounded-lg py-1.5 text-xs font-semibold transition-colors ${longOn}`}
-            onClick={() => setSide('LONG')}
+            onClick={() => sim.setSide('LONG')}
           >
             LONG
           </button>
           <button
             type="button"
             className={`app-no-drag shrink-0 rounded-lg py-1.5 text-xs font-semibold transition-colors ${shortOn}`}
-            onClick={() => setSide('SHORT')}
+            onClick={() => sim.setSide('SHORT')}
           >
             SHORT
           </button>
@@ -467,6 +483,16 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
 
       {/* Footer (sticky) */}
       <div className="shrink-0 border-t border-white/10 bg-neutral-900/95 app-pad-lg">
+        <div className="mb-2 flex justify-end">
+          <button
+            type="button"
+            className="app-no-drag rounded-lg border border-white/10 bg-neutral-950/30 px-2 py-1 text-[11px] font-semibold text-neutral-400 hover:bg-neutral-800/50 hover:text-neutral-200"
+            onClick={sim.reset}
+            title="Reset fields (clears saved state for this symbol)"
+          >
+            Reset
+          </button>
+        </div>
         <button
           type="button"
           onClick={handleSave}
