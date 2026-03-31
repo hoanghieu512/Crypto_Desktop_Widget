@@ -42,15 +42,16 @@ Gom **nhiều nguồn giá** (WebSocket + REST) vào **một cửa sổ nhỏ**,
 | EN | VI |
 |----|-----|
 | **Realtime crypto** — USDT pairs, Spot (last) / Futures (mark), per-row or global market mode, drag-and-drop sort (`@dnd-kit`). | **Crypto realtime** — cặp USDT, Spot (last) / Futures (mark), SPOT/FUT theo dòng hoặc chung, kéo thả sắp xếp. |
-| **Gold** — world XAU via USD/VND; Vietnam SJC/API (or mock); **VN sell vs world sell** spread; TG/VN buy–sell table. | **Vàng** — XAU quy đổi USD/VND; VN SJC/API hoặc mock; so **bán VN vs bán TG**; bảng mua/bán + chênh lệch. |
-| **Silver** — world XAG + VN listing when available; **VN mid vs world mid** spread (hook logic). | **Bạc** — XAG TG + niêm yết VN khi có; spread **giữa VN vs giữa TG**. |
-| **Domestic gold rows** — SJC / DOJI / BTMC codes; buy/sell/Δ stacked under each price. | **Vàng trong nước** — SJC / DOJI / BTMC; mua/bán/Δ ngay dưới giá. |
+| **Gold valuation widget** — clean card UI focused on **VN vs world** and **spread** (premium/discount insight + optional bar). | **Vàng (widget định giá)** — thẻ tối giản tập trung **VN vs TG** và **spread** (insight + thanh so sánh). |
+| **Silver valuation widget** — world XAG + VN listing when available; spread uses **VN mid vs world mid** (hook logic). | **Bạc (widget định giá)** — XAG TG + niêm yết VN khi có; spread theo **giữa VN vs giữa TG**. |
+| **Domestic listings (responsive)** — long domestic lists are hidden on small widths; shown from larger breakpoints for readability. | **Niêm yết trong nước (responsive)** — danh sách dài ẩn ở màn hình nhỏ, chỉ hiện khi đủ rộng. |
 | **Formatting** — `FormatProvider`, `formatPrice` / `useFormatPrice`. | **Định dạng số** — `FormatProvider` + `useFormatPrice`. |
-| **UTC sessions** — Asia / EU / US bar (`SessionBar`, `getSession`). | **Phiên UTC** — thanh Asia / EU / US. |
+| **UTC sessions** — Asia / EU / US bar with **minimal tooltip (3 lines)** and small delay. | **Phiên UTC** — thanh Asia / EU / US có **tooltip 3 dòng** (delay nhẹ). |
 | **Futures Simulator** — floating panel from **Futures** rows: snap to right (8px gap), optional drag + edge snap (~20px), backdrop + **ESC** / outside click to close; PnL / TP / SL / R:R / liq (approx.); **price ladder** (% vs mark) fills Entry / TP / SL. | **Futures Simulator** — panel nổi từ dòng Futures: snap phải, kéo/snap cạnh, đóng ESC/click nền; thang giá điền Entry/TP/SL. |
 | **Scroll UX** — `index.css`: WebKit/Firefox scrollbar overlay-style (dim until interaction). | **Thanh cuộn** — ẩn / hé hiện khi tương tác (Chromium/Electron; Firefox ẩn). |
 | **Metal market utility** — `getMetalMarketStatus` (OTC-style weekend gap Fri 22:00–Sun 22:00 UTC); ready for gold/silver status UI. | **Helper phiên kim loại** — `getMetalMarketStatus` (model OTC cuối tuần UTC); sẵn cho UI Vàng/Bạc. |
 | **Electron** — always-on-top, drag regions. | **Electron** — luôn trên cùng, vùng kéo cửa sổ. |
+| **Interaction system (subtle)** — low-contrast row hover, pointer/brightness on prices, subtle focus rings, directional price flash (up/down), small pulse on ladder-fill target inputs. | **Hệ tương tác (tinh tế)** — hover nhẹ, giá có pointer/brightness, focus ring mờ, flash giá lên/xuống, pulse nhẹ khi click ladder điền ô mục tiêu. |
 
 **EN — Not in repo yet:** push alerts, automated buy/sell signals, or advanced analytics (future work).  
 **VI — Chưa có:** alert đẩy, tín hiệu mua/bán tự động, analytics nâng cao (có thể mở rộng sau).
@@ -119,6 +120,7 @@ flowchart LR
 
 | Path | EN (role) | VI (vai trò) |
 |------|-----------|--------------|
+| `tailwind.config.js` | Tailwind design tokens (typography/colors/radius/shadow) | Token thiết kế Tailwind (chữ/màu/radius/shadow) |
 | `electron/main.cjs` | Electron window, preload, always-on-top | Cửa sổ Electron, preload, always-on-top |
 | `src/App.tsx` | Tabs Crypto / Gold / Silver, format shell | Tab Crypto / Vàng / Bạc, khung format |
 | `src/hooks/useRealtimePrice.ts` | Binance WS, connection state, prices | WebSocket Binance, trạng thái kết nối, giá |
@@ -130,11 +132,12 @@ flowchart LR
 | `src/components/WatchlistDashboard.tsx` | Crypto watchlist, DnD, futures overlay shell | Watchlist + overlay simulator |
 | `src/components/AssetCard.tsx` | Shared card layout | Layout thẻ dùng chung |
 | `src/components/FuturesSimulatorPanel.tsx` | Floating futures PnL UI + price ladder | Panel simulator + thang giá |
+| `src/components/ValuationWidget.tsx` | Shared valuation-focused card (gold/silver) | Thẻ định giá dùng chung (vàng/bạc) |
 | `src/hooks/useFuturesSimulator.ts` | Entry/leverage/size/TP/SL state + PnL math | State + công thức PnL |
 | `src/utils/futuresPriceLadder.ts` | Adaptive tick ladder around mark | Bậc giá quanh mark |
 | `src/utils/metalMarketStatus.ts` | OTC-style open / closed / opening-soon (weekend UTC) | Trạng thái phiên spot kim loại (helper) |
 | `src/utils/tradingSession.ts` | Crypto UTC session bands (Asia/EU/US) | Phiên crypto theo giờ UTC |
-| `src/index.css` | Tailwind import, drag regions, scrollbar overlay utilities | CSS global + scrollbar |
+| `src/index.css` | Tailwind import + theme vars, drag regions, scrollbar overlay, shared interaction utilities | CSS global + theme, scrollbar, utility tương tác |
 | `src/providers/FormatProvider.tsx` | Display format context | Context định dạng hiển thị |
 
 ---

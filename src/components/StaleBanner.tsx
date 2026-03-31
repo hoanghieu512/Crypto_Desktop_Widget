@@ -42,7 +42,7 @@ export const StaleBanner = memo(function StaleBanner({
 
   return (
     <div
-      className="app-no-drag flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/35 bg-amber-950/45 px-2.5 py-1.5 text-[10px] leading-snug text-amber-100/95 shadow-sm transition-opacity duration-200"
+      className="app-no-drag flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/35 bg-amber-950/45 app-pad-md text-meta leading-snug text-amber-100/95 shadow-sm transition-opacity duration-200"
       role="status"
     >
       {showSpinner ? (
@@ -55,7 +55,7 @@ export const StaleBanner = memo(function StaleBanner({
       {onManualRefresh ? (
         <button
           type="button"
-          className="app-no-drag shrink-0 rounded-md border border-amber-500/50 bg-amber-900/50 px-2 py-0.5 text-[10px] font-medium text-amber-50 transition-colors hover:border-amber-400/70 hover:bg-amber-900/70"
+          className="app-no-drag shrink-0 rounded-md border border-amber-500/50 bg-amber-900/50 px-2 py-0.5 text-meta font-medium text-amber-50 transition-colors hover:border-amber-400/70 hover:bg-amber-900/70"
           onClick={() => onManualRefresh()}
         >
           Làm mới

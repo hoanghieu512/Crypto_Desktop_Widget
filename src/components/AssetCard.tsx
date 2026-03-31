@@ -125,6 +125,9 @@ export const AssetCard = memo(function AssetCard({
   }, [hidePrice, price, type, mode, currency, rate])
 
   const priceSize = dense ? 'text-lg' : 'text-xl'
+  const hasExplicitPriceTextSize =
+    priceClassName != null && /\btext-(?:xs|sm|base|lg|xl|2xl|3xl)\b/.test(priceClassName)
+  const priceSizeClass = hasExplicitPriceTextSize ? '' : priceSize
 
   const showPriceBlock = !hidePrice
 
@@ -144,7 +147,9 @@ export const AssetCard = memo(function AssetCard({
         {action ? <div className="flex shrink-0 justify-end [&_button]:transition-colors">{action}</div> : null}
       </div>
 
-      {meta ? <div className="text-xs text-slate-500">{meta}</div> : null}
+      {meta ? (
+        <div className="text-[10px] font-medium leading-snug text-slate-500">{meta}</div>
+      ) : null}
 
       {showPriceBlock ? (
         <div
@@ -157,10 +162,10 @@ export const AssetCard = memo(function AssetCard({
           <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
             <div className="min-w-0">
               {priceLabel ? (
-                <p className="mb-0.5 text-xs font-medium text-slate-500">{priceLabel}</p>
+                <p className="mb-0.5 text-[10px] font-medium text-slate-500">{priceLabel}</p>
               ) : null}
               <div
-                className={`origin-left font-mono font-semibold tabular-nums tracking-tight ${priceSize} ${
+                className={`min-w-0 truncate origin-left font-mono font-semibold tabular-nums tracking-tight ${priceSizeClass} ${
                   priceClassName ?? 'text-slate-50'
                 } ${
                   smoothPriceUpdate

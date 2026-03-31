@@ -18,9 +18,10 @@ Chi tiết kiến trúc, luồng dữ liệu và hạn chế: xem **[PROJECT_OVE
 
 - **Crypto** — watchlist cặp USDT, Spot / Futures (mark), sắp xếp kéo thả, phiên giao dịch UTC (Asia / EU / US).
 - **Futures Simulator** — mở từ dòng **Futures** trong watchlist: panel nổi (snap mép phải, có thể kéo + snap cạnh), làm mờ nền, đóng bằng **ESC** hoặc click ra ngoài. Tính PnL / TP–SL / R:R / liq gần đúng; **thang giá** (price ladder) click để điền Entry / TP / SL.
-- **Vàng** — XAU quy đổi VND, SJC/VN, so sánh với thế giới; bảng niêm yết SJC / DOJI / BTMC.
-- **Bạc** — XAG thế giới + niêm yết VN (khi có dữ liệu).
+- **Vàng / Bạc (Valuation widgets)** — UI tối giản tập trung **so sánh VN vs TG** và **spread** (màu: đỏ = VN cao hơn, xanh = VN thấp hơn). Nhỏ (300–360px) chỉ hiển thị dữ liệu thiết yếu; rộng hơn có thêm so sánh/chi tiết.
+- **Niêm yết trong nước (tuỳ màn hình)** — Vàng SJC/DOJI/BTMC và bạc Phú Quý chỉ hiện chi tiết ở width đủ lớn để tránh “bảng dài” trên widget nhỏ.
 - **Định dạng** — hiển thị số theo `FormatProvider` (VND/USD, v.v.).
+- **Interaction system (subtle)** — tooltip phiên (3 dòng, delay ~140ms), hover nhẹ trên dòng watchlist và giá, focus ring tinh tế cho input, flash giá lên/xuống rất nhẹ.
 
 ---
 
@@ -33,6 +34,13 @@ Chi tiết kiến trúc, luồng dữ liệu và hạn chế: xem **[PROJECT_OVE
 | Desktop | Electron |
 | Realtime | WebSocket (Binance spot + futures mark) |
 | Lưu trữ cục bộ | `localStorage` (watchlist) |
+
+---
+
+## Design tokens (Tailwind)
+
+- **Tailwind config**: `tailwind.config.js` (typography tokens như `text-meta`/`text-price`/`text-pnl`, semantic colors như `text-profit`/`text-loss`, radius tokens, `shadow-panel`).
+- **Utilities bổ sung**: `src/index.css` (`app-panel`, `app-vstack-*`, `app-tooltip`, hiệu ứng flash/pulse rất nhẹ).
 
 ---
 

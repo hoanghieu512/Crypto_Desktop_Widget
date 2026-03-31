@@ -1,22 +1,10 @@
 import type { UseSilverPriceResult } from '../hooks/useSilverPrice'
 import { useFormatPrice } from '../hooks/useFormatPrice'
-import { SILVER_WORLD_HALF_SPREAD_USD_PER_OZ } from '../api/fetchSilverWorldWithFallback'
-import {
-  GOLD_BUY_SELL_GAP_LABEL,
-  GOLD_BUY_SELL_GAP_TOOLTIP,
-  goldBidAskGridClass,
-  goldQuotePanelClass,
-  metalBidAskTableGridClass,
-} from '../utils/goldDisplay'
-import { AssetCard } from './AssetCard'
+import type { SpreadInsight } from '../utils/goldPrice'
+import { ValuationWidget } from './ValuationWidget'
 
-function fmtSignedPct(p: number): string {
-  const sign = p > 0 ? '+' : ''
-  return `${sign}${p.toFixed(1)}%`
-}
-
-const TOOLTIP =
-  'Spot bạc thế giới (USD/tr.oz) quy đổi VND/lượng như vàng. Mua/bán quốc tế ước lượng ± quanh mid. Spread: VN giữa − thế giới giữa.'
+const PAGE_TOOLTIP =
+  'Spot bạc thế giới (USD/tr.oz) quy đổi VND/lượng như vàng. Spread: giữa VN − giữa TG (quy đổi).'
 
 type Props = {
   silver: UseSilverPriceResult
@@ -26,7 +14,6 @@ export function SilverDashboard({ silver }: Props) {
   const {
     worldBuyUsdPerOz,
     worldSellUsdPerOz,
-    worldMidUsdPerOz,
     worldBuyVndPerLuong,
     worldSellVndPerLuong,
     worldMidVndPerLuong,
@@ -34,10 +21,8 @@ export function SilverDashboard({ silver }: Props) {
     vnSellVndPerLuong,
     vnMidVndPerLuong,
     vnLabel,
-    usdVnd,
     spread,
-    spreadAccentClass: accentCls,
-    spreadInsightLabel,
+    insight,
     loading,
     worldError,
     listingsError,
@@ -52,215 +37,182 @@ export function SilverDashboard({ silver }: Props) {
 
   const { format: fmtLevel, formatSigned: fmtSignedLevel, unitHint } = useFormatPrice('silver')
 
-  const accent = accentCls
   const wm = worldMidVndPerLuong
   const vm = vnMidVndPerLuong
-  const worldReady =
-    wm != null &&
+
+  const worldOk =
     worldBuyVndPerLuong != null &&
     worldSellVndPerLuong != null &&
-    worldMidUsdPerOz != null
-  const spreadReady = vm != null && wm != null && spread != null
+    worldBuyUsdPerOz != null &&
+    worldSellUsdPerOz != null
 
-  const blockingError = worldError
+  const vnOk =
+    !vnSilverMissing &&
+    vnBuyVndPerLuong != null &&
+    vnSellVndPerLuong != null &&
+    vm != null
 
-  const vnBidAskSpread =
-    spreadReady && vnSellVndPerLuong != null && vnBuyVndPerLuong != null
-      ? vnSellVndPerLuong - vnBuyVndPerLuong
-      : null
+  const ready = worldOk && vnOk && spread != null
 
-  const refreshBtn = (
-    <button
-      type="button"
-      onClick={() => void refresh()}
-      className="app-no-drag rounded-md border border-slate-600 px-2 py-0.5 text-[10px] text-slate-300 transition-colors duration-200 hover:border-white/20 hover:text-slate-100"
-    >
-      Làm mới
-    </button>
-  )
+  const insightVal: SpreadInsight = ready ? insight : 'neutral'
 
-  const mainLabel = spreadReady
+  const sourceLine = (() => {
+    if (!worldOk) return null
+    if (ready) {
+      return vnLabel ?? 'Niêm yết Phú Quý'
+    }
+    if (vnSilverMissing) return 'Chưa có niêm yết Phú Quý để so sánh'
+    return null
+  })()
+
+  const primaryCaption = ready
     ? 'Giá giữa VN / lượng'
-    : worldReady
+    : worldOk && wm != null
       ? 'Giá giữa TG / lượng'
-      : undefined
-  const mainPrice =
-    spreadReady && vnMidVndPerLuong != null
-      ? vnMidVndPerLuong
-      : worldReady && worldMidVndPerLuong != null
-        ? worldMidVndPerLuong
+      : 'Giá tham chiếu'
+
+  const primaryPrice: number | string =
+    ready && vm != null
+      ? vm
+      : worldOk && wm != null
+        ? wm
         : loading
           ? '…'
           : '—'
 
+  const blockingError = worldError
+
+  const alert = (
+    <div className="mt-2 space-y-2">
+      {worldWarning ? (
+        <p
+          className="rounded-lg border border-amber-500/35 bg-amber-950/40 app-pad-md text-[10px] leading-snug text-amber-100/90"
+          role="status"
+        >
+          {worldWarning}
+        </p>
+      ) : null}
+      {listingsWarning ? (
+        <p
+          className="rounded-lg border border-amber-500/35 bg-amber-950/40 app-pad-md text-[10px] leading-snug text-amber-100/90"
+          role="status"
+        >
+          {listingsWarning}
+        </p>
+      ) : null}
+      {vnSilverMissing && worldOk ? (
+        <p
+          className="rounded-lg border border-amber-500/35 bg-amber-950/35 app-pad-md text-[11px] leading-snug text-amber-100/95"
+          role="status"
+        >
+          Không có niêm yết VN — chỉ hiển thị giá thế giới quy đổi.
+        </p>
+      ) : null}
+      {loading && !ready && !vnSilverMissing ? (
+        <p className="text-xs text-slate-500">Đang tải…</p>
+      ) : null}
+      {blockingError ? <p className="text-xs text-rose-300/90">{blockingError}</p> : null}
+      {listingsError && !blockingError ? (
+        <p className="text-[10px] text-rose-300/80">{listingsError}</p>
+      ) : null}
+      {fxError && !blockingError ? <p className="text-[10px] text-amber-200/70">{fxError}</p> : null}
+      {!loading && !blockingError && !worldOk ? (
+        <p className="text-xs text-slate-500">Chưa đủ dữ liệu.</p>
+      ) : null}
+    </div>
+  )
+
+  const hasAlert =
+    Boolean(worldWarning) ||
+    Boolean(listingsWarning) ||
+    (vnSilverMissing && worldOk) ||
+    (loading && !ready && !vnSilverMissing) ||
+    Boolean(blockingError) ||
+    Boolean(listingsError && !blockingError) ||
+    Boolean(fxError && !blockingError) ||
+    (!loading && !blockingError && !worldOk)
+
   return (
-    <div title={TOOLTIP} className="flex flex-col gap-2">
-      <AssetCard
-        type="silver"
+    <div title={PAGE_TOOLTIP} className="flex flex-col gap-3">
+      <ValuationWidget
+        asset="silver"
         title="Bạc"
-        badge="Dashboard"
-        action={refreshBtn}
-        meta={
-          unitHint || updatedAt ? (
-            <>
-              {unitHint}
-              {updatedAt ? (
-                <>
-                  {unitHint ? ' · ' : null}
-                  Niêm yết VN: {updatedAt}
-                </>
-              ) : null}
-            </>
-          ) : undefined
+        sourceLine={sourceLine}
+        unitLine={unitHint ?? null}
+        updatedAt={updatedAt}
+        primaryCaption={primaryCaption}
+        primaryPrice={primaryPrice}
+        changeVsWorldPercent={ready && spread ? spread.spreadPercent : null}
+        vn={
+          ready
+            ? {
+                buy: vnBuyVndPerLuong!,
+                sell: vnSellVndPerLuong!,
+                caption: 'Việt Nam',
+              }
+            : null
         }
-        priceLabel={mainLabel}
-        price={mainPrice}
-        priceClassName={spreadReady ? 'text-slate-50' : undefined}
-        priceAside={
-          spreadReady && spread ? (
-            <span className={`font-mono text-sm font-semibold tabular-nums ${accent}`} title={spreadInsightLabel}>
-              {fmtSignedLevel(spread.spreadVnd)} ({fmtSignedPct(spread.spreadPercent)})
-            </span>
-          ) : undefined
+        world={
+          worldOk
+            ? {
+                buy: worldBuyVndPerLuong,
+                sell: worldSellVndPerLuong!,
+                mid: wm,
+                caption: 'Thế giới (XAG)',
+              }
+            : null
         }
-      >
-        {worldWarning ? (
-          <p
-            className="rounded-md border border-amber-500/35 bg-amber-950/40 px-2 py-1 text-[10px] leading-snug text-amber-100/90"
-            role="status"
-          >
-            {worldWarning}
-          </p>
-        ) : null}
-        {listingsWarning ? (
-          <p
-            className="rounded-md border border-amber-500/35 bg-amber-950/40 px-2 py-1 text-[10px] leading-snug text-amber-100/90"
-            role="status"
-          >
-            {listingsWarning}
-          </p>
-        ) : null}
+        spreadVnd={ready && spread ? spread.spreadVnd : null}
+        spreadPercent={ready && spread ? spread.spreadPercent : null}
+        insight={insightVal}
+        format={fmtLevel}
+        formatSigned={fmtSignedLevel}
+        loading={Boolean(loading && !ready && !worldOk)}
+        alert={hasAlert ? alert : null}
+        footer={
+          ready && vnLabel ? (
+            <span className="text-slate-500">{vnLabel}</span>
+          ) : null
+        }
+        onRefresh={() => void refresh()}
+      />
 
-        {blockingError ? <p className="text-xs text-rose-300/90">{blockingError}</p> : null}
-        {listingsError && !blockingError ? (
-          <p className="text-[10px] text-rose-300/80">{listingsError}</p>
-        ) : null}
-        {fxError && !blockingError ? (
-          <p className="text-[10px] text-amber-200/70">{fxError}</p>
-        ) : null}
-
-        {vnSilverMissing && !listingsError ? (
-          <p className="rounded-md border border-slate-600/50 bg-slate-900/60 px-2 py-1.5 text-xs text-slate-400">
-            Bảng niêm yết chưa có dữ liệu (giabac.phuquygroup.vn). Giá thế giới XAG vẫn dùng được — thử Làm mới.
-          </p>
-        ) : null}
-
-        {loading && !worldReady ? <p className="text-xs text-slate-500">Đang tải…</p> : null}
-
-        {worldReady ? (
-          <>
-            {worldMidUsdPerOz != null && usdVnd != null ? (
-              <p className="text-xs text-slate-400">
-                XAG: mua {worldBuyUsdPerOz?.toLocaleString('en-US', { maximumFractionDigits: 3 })} · bán{' '}
-                {worldSellUsdPerOz?.toLocaleString('en-US', { maximumFractionDigits: 3 })} · giữa{' '}
-                {worldMidUsdPerOz.toLocaleString('en-US', { maximumFractionDigits: 3 })} USD/oz · FX:{' '}
-                {usdVnd.toLocaleString('vi-VN')}
-                <span className="mt-0.5 block text-[10px] text-slate-600">
-                  (±{SILVER_WORLD_HALF_SPREAD_USD_PER_OZ} USD/oz quanh mid.)
-                </span>
-              </p>
-            ) : null}
-
-            <div className="border-t border-white/10" />
-
-            {spreadReady && vnBuyVndPerLuong != null && vnSellVndPerLuong != null ? (
-              <div className={metalBidAskTableGridClass}>
-                <div />
-                <div className="text-right text-slate-500">Mua</div>
-                <div className="text-right text-slate-500">Bán</div>
-
-                <div className="text-slate-400">TG</div>
-                <div className="text-right text-slate-400">{fmtLevel(worldBuyVndPerLuong!)}</div>
-                <div className="text-right text-slate-400">{fmtLevel(worldSellVndPerLuong!)}</div>
-
-                <div className="text-slate-400">VN</div>
-                <div className="text-right text-emerald-400">{fmtLevel(vnBuyVndPerLuong)}</div>
-                <div className="text-right font-semibold text-rose-400">
-                  {fmtLevel(vnSellVndPerLuong)}
-                </div>
-
-                <div className="pr-1 text-slate-500" title={GOLD_BUY_SELL_GAP_TOOLTIP}>
-                  {GOLD_BUY_SELL_GAP_LABEL}
-                </div>
-                <div />
-                <div className="text-right text-slate-300">
-                  {vnBidAskSpread != null ? fmtLevel(vnBidAskSpread) : '—'}
-                </div>
-              </div>
-            ) : (
-              <p className="text-xs text-slate-500">Chưa có niêm yết VN để so sánh mua/bán.</p>
-            )}
-
-            <p className="text-xs text-slate-400">
-              Giữa TG: {fmtLevel(worldMidVndPerLuong!)}
-              {spreadReady && vm != null ? (
-                <>
-                  {' '}
-                  · Giữa VN: {fmtLevel(vm)}
-                </>
-              ) : null}
-            </p>
-
-            {vnLabel ? <p className="text-xs text-slate-600">{vnLabel}</p> : null}
-          </>
-        ) : !loading && blockingError ? null : !loading && !worldReady && !blockingError ? (
-          <p className="text-xs text-slate-500">Chưa đủ dữ liệu hiển thị.</p>
-        ) : null}
-      </AssetCard>
-
-      {listings.length > 0 ? (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Niêm yết trong nước (Phú Quý)
+      {listings.length > 1 ? (
+        <section className="hidden min-[420px]:flex flex-col gap-3">
+          <h2 className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 min-[361px]:text-xs">
+            Niêm yết trong nước (chi tiết)
           </h2>
-          {updatedAt ? (
-            <p className="text-[10px] text-slate-600">Cập nhật từ trang: {updatedAt}</p>
-          ) : null}
           <ul className="flex flex-col gap-2">
             {listings.map((row) => {
               const rowSpread = row.sell - row.buy
-              const badge = row.code.startsWith('PQBAC') ? 'PQBAC' : row.code
               return (
-                <li key={row.code}>
-                  <AssetCard
-                    dense
-                    type="silver"
-                    title={`${row.brand} — Bạc`}
-                    badge={badge}
-                    meta={row.name}
-                    hidePrice
-                    price=""
-                  >
-                    <div className={`${goldQuotePanelClass} space-y-2`}>
-                      <p className="text-[9px] font-medium uppercase tracking-wide text-slate-500">
-                        Niêm yết · {row.unit}
+                <li
+                  key={row.code}
+                  className="rounded-xl border border-white/[0.07] bg-slate-900/60 app-pad-md ring-1 ring-black/20"
+                >
+                  <div className="flex min-w-0 items-baseline justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium text-slate-200">{row.brand}</p>
+                      <p className="truncate text-[10px] text-slate-500">
+                        {row.name} · {row.unit}
                       </p>
-                      <div className={goldBidAskGridClass}>
-                        <span className="self-start pt-0.5 text-left text-slate-500">Mua</span>
-                        <span className="text-right text-emerald-400">{fmtLevel(row.buy)}</span>
-                        <span className="self-start pt-0.5 text-left text-slate-500">Bán</span>
-                        <span className="text-right text-base font-semibold text-rose-400">
-                          {fmtLevel(row.sell)}
-                        </span>
-                        <span className="text-slate-500" title={GOLD_BUY_SELL_GAP_TOOLTIP}>
-                          {GOLD_BUY_SELL_GAP_LABEL}
-                        </span>
-                        <span className="text-right text-slate-300">
-                          {fmtLevel(rowSpread)}
-                        </span>
-                      </div>
                     </div>
-                  </AssetCard>
+                    <span className="shrink-0 rounded bg-slate-800/80 px-1.5 py-0.5 font-mono text-[9px] text-slate-400">
+                      {row.code}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex justify-between gap-3 text-[11px]">
+                    <span className="text-slate-500">Mua</span>
+                    <span className="tabular-nums text-emerald-400/90">{fmtLevel(row.buy)}</span>
+                  </div>
+                  <div className="flex justify-between gap-3 text-[11px]">
+                    <span className="text-slate-500">Bán</span>
+                    <span className="tabular-nums font-semibold text-rose-300/90">{fmtLevel(row.sell)}</span>
+                  </div>
+                  <div className="mt-1 flex justify-between gap-3 border-t border-white/5 pt-1 text-[10px] text-slate-500">
+                    <span>Chênh mua/bán</span>
+                    <span className="tabular-nums text-slate-400">{fmtLevel(rowSpread)}</span>
+                  </div>
                 </li>
               )
             })}

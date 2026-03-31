@@ -4,6 +4,8 @@ import { FormatControls } from './components/FormatControls'
 import { PreciousMetalsPanel } from './components/PreciousMetalsPanel'
 import { SilverPanel } from './components/SilverPanel'
 import { WatchlistDashboard } from './components/WatchlistDashboard'
+import { FloatingPortfolioButton } from './components/FloatingPortfolioButton'
+import { PortfolioSidePanel } from './components/PortfolioSidePanel'
 import type { RealtimeConnectionStatus } from './hooks/useRealtimePrice'
 
 type Tab = 'crypto' | 'gold' | 'silver'
@@ -16,10 +18,12 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('crypto')
   const [alwaysOnTop, setAlwaysOnTop] = useState(true)
   const [cryptoConn, setCryptoConn] = useState<RealtimeConnectionStatus | null>(null)
+  const [portfolioOpen, setPortfolioOpen] = useState(false)
   const electron = isElectron()
 
   useEffect(() => {
     if (tab !== 'crypto') setCryptoConn(null)
+    if (tab !== 'crypto') setPortfolioOpen(false)
   }, [tab])
 
   useEffect(() => {
@@ -36,20 +40,17 @@ export default function App() {
 
   return (
     <FormatProvider>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-bx-border-medium bg-bx-base shadow-2xl shadow-black/50">
-        <header
-          className={`app-drag grid h-14 shrink-0 items-center gap-2 border-b border-bx-border-subtle bg-bx-surface px-2 ${
-            electron ? 'grid-cols-[auto_minmax(0,1fr)_auto]' : 'grid-cols-[auto_minmax(0,1fr)]'
-          }`}
-        >
-          <nav
-            className="app-no-drag flex h-full shrink-0 items-stretch gap-1"
-            aria-label="Tab chính"
-          >
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-bx-border-medium bg-bx-base shadow-2xl shadow-black/50">
+        <header className="app-drag flex min-w-0 shrink-0 flex-col gap-1.5 border-b border-bx-border-subtle bg-bx-surface px-2 py-2 max-[299px]:gap-1 max-[299px]:px-1.5 max-[299px]:py-1.5 min-[361px]:gap-2 min-[361px]:px-3">
+          <div className="app-no-drag flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 max-[299px]:gap-x-1.5">
+            <nav
+              className="flex min-w-0 flex-wrap items-stretch gap-1"
+              aria-label="Tab chính"
+            >
             <button
               type="button"
               onClick={() => setTab('crypto')}
-              className={`flex items-center gap-2 border-b-2 px-3 text-sm font-medium transition-colors duration-150 ${
+              className={`flex shrink-0 items-center gap-2 border-b-2 px-2.5 py-1.5 text-sm font-medium transition-colors duration-150 sm:px-3 ${
                 tab === 'crypto'
                   ? 'border-bx-yellow text-bx-yellow'
                   : 'border-transparent text-bx-secondary hover:text-bx-primary'
@@ -67,7 +68,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setTab('gold')}
-              className={`flex items-center border-b-2 px-3 text-sm font-medium transition-colors duration-150 ${
+              className={`flex shrink-0 items-center border-b-2 px-2.5 py-1.5 text-sm font-medium transition-colors duration-150 sm:px-3 ${
                 tab === 'gold'
                   ? 'border-bx-yellow text-bx-yellow'
                   : 'border-transparent text-bx-secondary hover:text-bx-primary'
@@ -78,7 +79,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setTab('silver')}
-              className={`flex items-center border-b-2 px-3 text-sm font-medium transition-colors duration-150 ${
+              className={`flex shrink-0 items-center border-b-2 px-2.5 py-1.5 text-sm font-medium transition-colors duration-150 sm:px-3 ${
                 tab === 'silver'
                   ? 'border-bx-yellow text-bx-yellow'
                   : 'border-transparent text-bx-secondary hover:text-bx-primary'
@@ -86,19 +87,15 @@ export default function App() {
             >
               Bạc
             </button>
-          </nav>
+            </nav>
 
-          <div className="app-no-drag flex min-w-0 items-center justify-center overflow-x-auto overflow-y-hidden">
-            <FormatControls />
-          </div>
-
-          {electron ? (
-            <div className="app-no-drag flex shrink-0 items-center gap-0.5">
+            {electron ? (
+              <div className="flex shrink-0 items-center gap-0.5">
               <button
                 type="button"
                 aria-label={alwaysOnTop ? 'Tắt luôn trên cùng' : 'Bật luôn trên cùng'}
                 title={alwaysOnTop ? 'Luôn trên cùng: bật' : 'Luôn trên cùng: tắt'}
-                className={`flex h-8 w-9 items-center justify-center rounded-lg hover:bg-bx-elevated ${
+                className={`flex h-8 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-bx-elevated ${
                   alwaysOnTop ? 'text-bx-yellow' : 'text-bx-muted'
                 }`}
                 onClick={toggleAlwaysOnTop}
@@ -119,7 +116,7 @@ export default function App() {
               <button
                 type="button"
                 aria-label="Thu nhỏ"
-                className="flex h-8 w-9 items-center justify-center rounded-lg text-bx-secondary hover:bg-bx-elevated hover:text-bx-primary"
+                className="flex h-8 w-9 shrink-0 items-center justify-center rounded-lg text-bx-secondary hover:bg-bx-elevated hover:text-bx-primary"
                 onClick={() => window.electronAPI?.minimize()}
               >
                 ─
@@ -127,13 +124,20 @@ export default function App() {
               <button
                 type="button"
                 aria-label="Đóng"
-                className="flex h-8 w-9 items-center justify-center rounded-lg text-bx-secondary hover:bg-bx-red/15 hover:text-bx-red"
+                className="flex h-8 w-9 shrink-0 items-center justify-center rounded-lg text-bx-secondary hover:bg-bx-red/15 hover:text-bx-red"
                 onClick={() => window.electronAPI?.close()}
               >
                 ✕
               </button>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="app-no-drag flex min-w-0 items-center justify-center border-t border-bx-border-subtle/80 pt-1.5 max-[299px]:pt-1 min-[361px]:pt-2">
+            <div className="min-w-0 overflow-x-auto overflow-y-hidden">
+              <FormatControls variant={tab === 'crypto' ? 'crypto' : 'metals'} />
             </div>
-          ) : null}
+          </div>
         </header>
 
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -146,12 +150,19 @@ export default function App() {
           )}
         </main>
 
+        {tab === 'crypto' ? (
+          <>
+            <FloatingPortfolioButton onClick={() => setPortfolioOpen(true)} />
+            <PortfolioSidePanel isOpen={portfolioOpen} onClose={() => setPortfolioOpen(false)} />
+          </>
+        ) : null}
+
         {electron ? (
-          <p className="app-drag shrink-0 border-t border-bx-border-subtle px-3 py-1.5 text-center text-[10px] text-bx-muted">
+          <p className="app-drag min-w-0 shrink-0 border-t border-bx-border-subtle px-2 py-1.5 text-center text-[10px] leading-tight break-words text-bx-muted">
             Kéo vùng tiêu đề (không phải nút điều khiển giá) để di chuyển · nút ghim luôn trên cùng
           </p>
         ) : (
-          <p className="app-no-drag shrink-0 border-t border-bx-border-subtle px-3 py-1.5 text-center text-[10px] text-bx-muted">
+          <p className="app-no-drag min-w-0 shrink-0 border-t border-bx-border-subtle px-2 py-1.5 text-center text-[10px] leading-tight text-bx-muted">
             Desktop: <span className="font-mono text-bx-secondary">npm run dev:electron</span>
           </p>
         )}

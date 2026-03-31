@@ -26,6 +26,19 @@
   --color-bx-add-fg: #1a1a1a;
 
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+
+  /* Semantic tokens (used by Tailwind utilities) */
+  --color-profit: var(--color-bx-green);
+  --color-loss: var(--color-bx-red);
+  --color-gold: var(--color-bx-yellow);
+
+  --color-text-primary: var(--color-bx-primary);
+  --color-text-secondary: var(--color-bx-secondary);
+  --color-text-muted: var(--color-bx-muted);
+
+  --color-panel: var(--color-bx-surface);
+  --color-panel-2: var(--color-bx-elevated);
+  --color-divider: rgba(255, 255, 255, 0.1);
 }
 
 @layer base {
@@ -57,6 +70,165 @@
     letter-spacing: -0.01em;
     font-weight: 600;
   }
+
+  /*
+   * Unified spacing + layout system (fixed scale)
+   * XS 4px, SM 6px, MD 8px, LG 12px, XL 16px
+   * Container padding 12px, radius 16px
+   */
+  .app-panel {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .app-vstack-xs {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .app-vstack-sm {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .app-vstack-md {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .app-vstack-lg {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .app-vstack-xl {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .app-hstack-xs {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+  .app-hstack-sm {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .app-hstack-md {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .app-hstack-lg {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .app-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  /* Tooltip: delayed show, fade + slight translate, non-blocking */
+  .app-tooltip {
+    pointer-events: none;
+    position: absolute;
+    z-index: 50;
+    opacity: 0;
+    transform: translateY(4px);
+    transition-property: opacity, transform;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+    transition-delay: 0ms;
+  }
+  .group:hover .app-tooltip,
+  .group:focus-within .app-tooltip {
+    opacity: 1;
+    transform: translateY(0);
+    transition-delay: 140ms;
+  }
+
+  /* Price update flash (directional, subtle) */
+  @keyframes app-price-flash-up {
+    0% {
+      background-color: rgb(22 163 74 / 0.14);
+      box-shadow: inset 0 0 0 1px rgb(34 197 94 / 0.28);
+    }
+    100% {
+      background-color: transparent;
+      box-shadow: inset 0 0 0 0 transparent;
+    }
+  }
+  @keyframes app-price-flash-down {
+    0% {
+      background-color: rgb(244 63 94 / 0.12);
+      box-shadow: inset 0 0 0 1px rgb(251 113 133 / 0.26);
+    }
+    100% {
+      background-color: transparent;
+      box-shadow: inset 0 0 0 0 transparent;
+    }
+  }
+  .app-price-flash-up {
+    animation: app-price-flash-up 0.52s ease-out;
+  }
+  .app-price-flash-down {
+    animation: app-price-flash-down 0.52s ease-out;
+  }
+
+  /* Click-feedback pulse for target input */
+  @keyframes app-input-pulse {
+    0% {
+      box-shadow: inset 0 0 0 1px rgb(240 185 11 / 0.0);
+      background-color: transparent;
+    }
+    15% {
+      box-shadow: inset 0 0 0 1px rgb(240 185 11 / 0.28);
+      background-color: rgb(240 185 11 / 0.08);
+    }
+    100% {
+      box-shadow: inset 0 0 0 1px rgb(240 185 11 / 0.0);
+      background-color: transparent;
+    }
+  }
+  .app-input-pulse {
+    animation: app-input-pulse 180ms ease-out;
+  }
+
+  .app-pad-xs {
+    padding: 4px;
+  }
+  .app-pad-sm {
+    padding: 6px;
+  }
+  .app-pad-md {
+    padding: 8px;
+  }
+  .app-pad-lg {
+    padding: 12px;
+  }
+  .app-pad-xl {
+    padding: 16px;
+  }
+
+  /** Nhấp nháy nhẹ khi giá realtime đổi */
+  .animate-price-flash {
+    animation: bx-price-flash 0.5s ease-out;
+  }
+
+  @keyframes bx-price-flash {
+    0% {
+      background-color: rgba(240, 185, 11, 0.18);
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+
 }
 
 /*

@@ -32,15 +32,15 @@ export function PreciousMetalsPanel({ active }: Props) {
   const { format: fmtLevel, unitHint } = useFormatPrice('gold')
 
   return (
-    <div className="app-no-drag flex h-full min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden px-3 pb-4 pt-1">
+    <div className="app-no-drag flex h-full min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden px-3 pb-4 pt-1 max-[299px]:gap-1.5 max-[299px]:px-2 min-[361px]:gap-3 min-[361px]:px-4">
       <div className="shrink-0">
         <GoldDashboard active={active} />
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-          <span>
-            Bảng chi tiết:{' '}
+      <div className="hidden min-[420px]:flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+        <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500 min-[361px]:text-xs">
+          <span className="min-w-0 max-[299px]:truncate">
+            <span className="hidden min-[361px]:inline">Bảng chi tiết: </span>
             <a
               className="text-violet-400 underline-offset-2 hover:underline"
               href="https://www.vang.today"
@@ -49,15 +49,16 @@ export function PreciousMetalsPanel({ active }: Props) {
             >
               vang.today
             </a>
-            {' · '}
-            làm mới ~60s
+            <span className="hidden min-[361px]:inline"> · làm mới ~60s</span>
           </span>
           <button
             type="button"
+            title="Làm mới bảng giá"
             onClick={() => void refresh()}
-            className="app-no-drag rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 hover:border-violet-500/50"
+            className="app-no-drag shrink-0 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] text-slate-200 hover:border-violet-500/50 min-[361px]:text-xs"
           >
-            Làm mới bảng
+            <span className="min-[361px]:hidden">Làm mới</span>
+            <span className="hidden min-[361px]:inline">Làm mới bảng</span>
           </button>
         </div>
 
@@ -85,7 +86,7 @@ export function PreciousMetalsPanel({ active }: Props) {
         ) : null}
 
         <section className="min-h-0 pb-1">
-          <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <h2 className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 min-[361px]:text-xs">
             Vàng trong nước (SJC / DOJI / BTMC)
           </h2>
           <p className="mb-2 text-[10px] text-slate-500">{unitHint}</p>
