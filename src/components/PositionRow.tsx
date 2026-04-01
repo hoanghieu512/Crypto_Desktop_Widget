@@ -1,7 +1,10 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { PositionComputed } from '../hooks/usePortfolio'
 import { useFormat } from '../providers/FormatProvider'
 import { formatSize } from '../utils/formatNumber'
+import { getPnlIntensityClass } from '../utils/formatPnl'
+import type { FundingResult } from '../types/funding'
+import { adjustedMargin } from '../utils/fundingCalculator'
 
 function fmtSignedPct(p: number): string {
   const sign = p > 0 ? '+' : ''
@@ -13,15 +16,35 @@ export type PositionRowProps = {
   onDelete: (id: string) => void
   onEdit?: (id: string) => void
   onUpdateNote?: (id: string, notes: string) => void
+  funding?: FundingResult
+  /** Optional drag handle (manual positions only). */
+  dragHandle?: ReactNode
+  /** Sortable container ref (li). */
+  setNodeRef?: (el: HTMLLIElement | null) => void
+  /** Sortable transform/transition styles. */
+  style?: CSSProperties
 }
 
-export const PositionRow = memo(function PositionRow({ row, onDelete, onEdit, onUpdateNote }: PositionRowProps) {
+export const PositionRow = memo(function PositionRow({
+  row,
+  onDelete,
+  onEdit,
+  onUpdateNote,
+  funding,
+  dragHandle,
+  setNodeRef,
+  style,
+}: PositionRowProps) {
   const { formatPrice, formatPriceSigned } = useFormat()
   const p = row.position
 
   const pnl = row.unrealizedPnl
-  const roe = row.roe
-  const tone = pnl == null ? 'text-bx-muted' : pnl >= 0 ? 'text-profit' : 'text-loss'
+  const fundingPnl = funding?.totalFundingPnL ?? 0
+  const totalPnl = (pnl ?? 0) + (Number.isFinite(fundingPnl) ? fundingPnl : 0)
+  const adjMargin = adjustedMargin(p, fundingPnl)
+  const roe =
+    adjMargin > 0 && Number.isFinite(totalPnl) ? (totalPnl / adjMargin) * 100 : row.roe
+  const tone = getPnlIntensityClass(roe ?? null)
 
   const sideBadge =
     p.side === 'LONG'
@@ -29,6 +52,12 @@ export const PositionRow = memo(function PositionRow({ row, onDelete, onEdit, on
       : 'bg-loss/15 text-loss ring-1 ring-inset ring-loss/20'
 
   const levBadge = 'rounded-full bg-bx-elevated px-2 py-0.5 text-meta font-semibold text-bx-secondary'
+  const modeBadge =
+    p.marginMode === 'isolated'
+      ? 'rounded-full bg-orange-500/20 px-2 py-0.5 text-meta font-semibold text-orange-400'
+      : 'rounded-full bg-gray-500/20 px-2 py-0.5 text-meta font-semibold text-gray-400'
+
+  const fundingTone = getPnlIntensityClass(adjMargin > 0 ? (fundingPnl / adjMargin) * 100 : null)
 
   // Subtle pulse when pnl changes "enough", throttled.
   const prevPnlRef = useRef<number | null>(null)
@@ -94,15 +123,22 @@ export const PositionRow = memo(function PositionRow({ row, onDelete, onEdit, on
   }
 
   return (
-    <li className={`list-none rounded-xl border border-white/[0.06] bg-bx-surface/60 app-pad-md shadow-panel ${flashClass}`}>
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="min-w-0">
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={`list-none rounded-xl border border-white/[0.06] bg-bx-surface/60 app-pad-md shadow-panel ${flashClass}`}
+    >
+      <div className="flex min-w-0 items-start gap-2">
+        {dragHandle ? <div className="shrink-0 pt-0.5">{dragHandle}</div> : null}
+        <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+          <div className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="truncate font-mono text-symbol font-semibold text-bx-primary">{p.symbol}</span>
             <span className={`shrink-0 rounded-full px-2 py-0.5 text-meta font-semibold ${sideBadge}`}>
               {p.side}
             </span>
             <span className={levBadge}>{p.leverage.toFixed(0)}x</span>
+            <span className={modeBadge}>{p.marginMode === 'isolated' ? 'ISO' : 'CROSS'}</span>
             {canEditNote ? (
               <button
                 type="button"
@@ -221,7 +257,7 @@ export const PositionRow = memo(function PositionRow({ row, onDelete, onEdit, on
             <div className="flex justify-between gap-2">
               <span className="text-bx-muted">Margin</span>
               <span className="font-mono tabular-nums text-bx-secondary">
-                {formatPrice(p.margin, 'crypto')}
+                {formatPrice(adjMargin, 'crypto')}
               </span>
             </div>
             <div className="flex justify-between gap-2">
@@ -230,17 +266,32 @@ export const PositionRow = memo(function PositionRow({ row, onDelete, onEdit, on
                 {formatSize(p.quantity)} {p.symbol.replace(/USDT$/i, '')}
               </span>
             </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-bx-muted">Funding</span>
+              <span className={`font-mono tabular-nums ${fundingTone}`}>
+                {formatPriceSigned(fundingPnl, 'crypto')}
+              </span>
+            </div>
           </div>
         </div>
 
-        <div className="shrink-0 text-right">
+          <div className="shrink-0 text-right">
           <div className="app-vstack-xs items-end">
             <div className={`font-mono text-price font-semibold tabular-nums ${tone}`}>
-              {pnl == null ? '—' : formatPriceSigned(pnl, 'crypto')}
+              {pnl == null ? '—' : formatPriceSigned(totalPnl, 'crypto')}
             </div>
             <div className={`text-label font-semibold tabular-nums ${tone}`}>
               {roe == null ? '—' : fmtSignedPct(roe)}
             </div>
+            {pnl != null ? (
+              <div className="mt-0.5 text-[11px] text-bx-muted">
+                <span className="font-mono tabular-nums">{formatPriceSigned(pnl ?? 0, 'crypto')}</span>
+                <span> price</span>
+                <span className="mx-1">·</span>
+                <span className={`font-mono tabular-nums ${fundingTone}`}>{formatPriceSigned(fundingPnl, 'crypto')}</span>
+                <span className="text-bx-muted"> funding</span>
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-2 flex justify-end gap-2">
@@ -262,6 +313,7 @@ export const PositionRow = memo(function PositionRow({ row, onDelete, onEdit, on
                 Delete
               </button>
             ) : null}
+          </div>
           </div>
         </div>
       </div>

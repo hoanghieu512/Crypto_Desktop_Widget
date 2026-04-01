@@ -65,21 +65,6 @@ export function SilverDashboard({ silver }: Props) {
     return null
   })()
 
-  const primaryCaption = ready
-    ? 'Giá giữa VN / lượng'
-    : worldOk && wm != null
-      ? 'Giá giữa TG / lượng'
-      : 'Giá tham chiếu'
-
-  const primaryPrice: number | string =
-    ready && vm != null
-      ? vm
-      : worldOk && wm != null
-        ? wm
-        : loading
-          ? '…'
-          : '—'
-
   const blockingError = worldError
 
   const alert = (
@@ -134,15 +119,13 @@ export function SilverDashboard({ silver }: Props) {
 
   return (
     <div title={PAGE_TOOLTIP} className="flex flex-col gap-3">
+      <div className="rounded-xl border border-white/[0.07] bg-slate-900/70 p-4 ring-1 ring-black/20">
       <ValuationWidget
         asset="silver"
         title="Bạc"
         sourceLine={sourceLine}
         unitLine={unitHint ?? null}
         updatedAt={updatedAt}
-        primaryCaption={primaryCaption}
-        primaryPrice={primaryPrice}
-        changeVsWorldPercent={ready && spread ? spread.spreadPercent : null}
         vn={
           ready
             ? {
@@ -176,6 +159,7 @@ export function SilverDashboard({ silver }: Props) {
         }
         onRefresh={() => void refresh()}
       />
+      </div>
 
       {listings.length > 1 ? (
         <section className="hidden min-[420px]:flex flex-col gap-3">

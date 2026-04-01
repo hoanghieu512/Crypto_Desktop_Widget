@@ -1,10 +1,8 @@
 import type { ReactNode } from 'react'
+import { useFormat } from '../providers/FormatProvider'
 import type { SpreadInsight } from '../utils/goldPrice'
-import {
-  spreadAccentClass,
-  spreadInsightLabelVi,
-  spreadInsightShortLabelVi,
-} from '../utils/goldPrice'
+import type { FormatCurrency } from '../utils/formatPrice'
+import { spreadInsightLabelVi, spreadInsightShortLabelVi } from '../utils/goldPrice'
 
 function fmtSignedPct(p: number): string {
   if (!Number.isFinite(p)) return '—'
@@ -21,6 +19,37 @@ function insightHeadlineVi(insight: SpreadInsight): string {
     default:
       return 'Sát giá TG'
   }
+}
+
+const CURRENCIES: readonly { id: FormatCurrency; label: string }[] = [
+  { id: 'VND', label: 'VND' },
+  { id: 'USD', label: 'USD' },
+]
+
+function MetalCurrencySeg() {
+  const { currency, setCurrency } = useFormat()
+  return (
+    <div
+      className="inline-flex shrink-0 rounded-lg border border-white/10 bg-slate-900/80 p-0.5"
+      role="group"
+      aria-label="Tiền tệ hiển thị"
+    >
+      {CURRENCIES.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          onClick={() => setCurrency(o.id)}
+          className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold transition-colors ${
+            currency === o.id
+              ? 'bg-white/10 text-white'
+              : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 /** Thanh so sánh tương đối VN vs TG (cùng đơn vị). */
@@ -81,17 +110,11 @@ export type ValuationComparisonWorld = {
 }
 
 export type ValuationWidgetProps = {
-  /** Hiển thị ở tab */
   asset: 'gold' | 'silver'
   title: string
-  /** Ví dụ: SJC, Phú Quý */
   sourceLine: string | null
   unitLine?: string | null
   updatedAt?: string | null
-  primaryCaption: string
-  primaryPrice: number | string
-  /** % chênh vs TG (spread) */
-  changeVsWorldPercent?: number | null
   vn: ValuationComparisonVN | null
   world: ValuationComparisonWorld | null
   spreadVnd?: number | null
@@ -103,14 +126,12 @@ export type ValuationWidgetProps = {
   alert?: ReactNode
   footer?: ReactNode
   onRefresh?: () => void
-  /** Hiện đầy đủ mua/bán VN (mặc định từ md) */
   showFullComparison?: boolean
-  /** Hiện thanh so sánh + insight dài */
   showSpreadBar?: boolean
 }
 
-const cardShell =
-  'rounded-2xl border border-white/[0.07] bg-slate-900/90 shadow-sm ring-1 ring-black/20'
+const cardClass =
+  'rounded-lg border border-white/5 bg-gray-800/50 p-4 shadow-sm ring-1 ring-black/20'
 
 export function ValuationWidget({
   asset,
@@ -118,9 +139,6 @@ export function ValuationWidget({
   sourceLine,
   unitLine,
   updatedAt,
-  primaryCaption,
-  primaryPrice,
-  changeVsWorldPercent,
   vn,
   world,
   spreadVnd,
@@ -135,7 +153,9 @@ export function ValuationWidget({
   showFullComparison = true,
   showSpreadBar = true,
 }: ValuationWidgetProps) {
-  const accent = spreadAccentClass(insight)
+  const spreadAccent = asset === 'gold' ? 'text-yellow-400' : 'text-sky-300'
+  const titleAccent = asset === 'gold' ? 'text-yellow-400' : 'text-sky-300'
+
   const hasSpread =
     spreadVnd != null &&
     spreadPercent != null &&
@@ -158,150 +178,127 @@ export function ValuationWidget({
     vnSell > 0 &&
     worldSell > 0
 
-  const titleAccent = asset === 'gold' ? 'text-amber-200/95' : 'text-slate-200/95'
+  const subtitleParts = [sourceLine, updatedAt ? `Cập nhật: ${updatedAt}` : null].filter(
+    Boolean,
+  ) as string[]
 
-  const priceDisplay =
-    typeof primaryPrice === 'number' && Number.isFinite(primaryPrice)
-      ? format(primaryPrice)
-      : primaryPrice
+  const showWorldCard = world != null && world.sell != null
+  const vnHasBidAsk =
+    showFullComparison && vn != null && vn.buy != null && vn.sell != null
+  const vnHasMidOnly = vn != null && vn.mid != null && !vnHasBidAsk
 
   return (
-    <div className={`${cardShell} app-panel`}>
-      <div className="flex min-w-0 items-start justify-between gap-2 border-b border-white/10 pb-2">
-        <div className="min-w-0">
-          <h2 className={`text-base font-semibold tracking-tight ${titleAccent} min-[361px]:text-lg`}>
-            {title}
-          </h2>
-          {sourceLine ? (
-            <p className="mt-1 truncate text-label text-slate-500">{sourceLine}</p>
+    <div className="flex flex-col gap-4">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h2 className={`text-lg font-semibold tracking-tight ${titleAccent}`}>{title}</h2>
+          {subtitleParts.length > 0 ? (
+            <p className="mt-0.5 truncate text-sm text-slate-400">{subtitleParts.join(' · ')}</p>
           ) : null}
           {unitLine ? (
-            <p className="mt-1 text-meta text-slate-600 max-[299px]:hidden">{unitLine}</p>
-          ) : null}
-          {updatedAt ? (
-            <p className="mt-1 text-meta text-slate-600 max-[299px]:hidden">
-              Cập nhật: {updatedAt}
+            <p className="mt-0.5 text-[11px] leading-snug text-slate-500 max-[320px]:line-clamp-2">
+              {unitLine}
             </p>
           ) : null}
         </div>
-        {onRefresh ? (
-          <button
-            type="button"
-            onClick={onRefresh}
-            className="app-no-drag shrink-0 rounded-lg border border-slate-600/80 px-2 py-1 text-meta text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
-          >
-            Làm mới
-          </button>
-        ) : null}
+        <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
+          <MetalCurrencySeg />
+          {onRefresh ? (
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="app-no-drag rounded-lg border border-slate-600/80 bg-slate-900/60 px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:text-white"
+            >
+              Làm mới
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {alert}
 
-      <div className="mt-3 app-vstack-sm">
-        <p className="text-meta font-medium uppercase tracking-wide text-slate-500">{primaryCaption}</p>
-        <p className="font-mono text-price font-semibold tabular-nums tracking-tight text-white max-[299px]:text-lg">
-          {loading ? '…' : priceDisplay}
-        </p>
-        {changeVsWorldPercent != null && Number.isFinite(changeVsWorldPercent) ? (
-          <p className={`text-label font-semibold tabular-nums transition-colors duration-300 ${accent}`}>
-            {fmtSignedPct(changeVsWorldPercent)} <span className="font-normal text-slate-500">so với TG</span>
-          </p>
-        ) : null}
-      </div>
-
-      {world != null && world.sell != null ? (
-        <div className="mt-3 app-vstack-lg border-t border-white/10 pt-3">
-          <p className="text-meta font-medium uppercase tracking-wide text-slate-500">So sánh (lượng)</p>
-
-          <div className="hidden min-[300px]:block app-vstack-md">
-            {vn != null && showFullComparison && vn.buy != null && vn.sell != null ? (
-              <>
-                <div className="hidden min-[361px]:flex flex-col rounded-lg bg-slate-950/50 app-pad-md ring-1 ring-white/5 app-vstack-sm">
-                  <p className="text-meta text-slate-500">{vn.caption}</p>
-                  <div className="flex justify-between gap-3 text-xs">
-                    <span className="text-slate-500">Mua</span>
-                    <span className="tabular-nums text-emerald-400/90">{format(vn.buy)}</span>
+      {showWorldCard ? (
+        <div className="grid grid-cols-1 gap-4 min-[380px]:grid-cols-2">
+          <div className={cardClass}>
+            <div className="mb-3 flex items-center gap-2">
+              <span className="text-base" aria-hidden>
+                🇻🇳
+              </span>
+              <span className="text-sm font-medium text-slate-200">Việt Nam</span>
+            </div>
+            <div className="space-y-2 text-sm">
+              {loading && !vn ? (
+                <p className="text-slate-500">Đang tải…</p>
+              ) : vnHasBidAsk ? (
+                <>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-slate-400">Mua</span>
+                    <span className="tabular-nums font-medium text-green-400">{format(vn!.buy!)}</span>
                   </div>
-                  <div className="flex justify-between gap-3 text-xs">
-                    <span className="text-slate-500">Bán</span>
-                    <span className="tabular-nums font-semibold text-rose-300/90">{format(vn.sell)}</span>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-slate-400">Bán</span>
+                    <span className="tabular-nums font-semibold text-red-400">{format(vn!.sell!)}</span>
                   </div>
+                </>
+              ) : vnHasMidOnly ? (
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-400">Giữa</span>
+                  <span className="tabular-nums font-medium text-slate-200">{format(vn!.mid!)}</span>
                 </div>
-                <div className="flex min-[361px]:hidden justify-between gap-2 rounded-lg bg-slate-950/50 app-pad-md text-xs ring-1 ring-white/5">
-                  <span className="text-slate-500">VN · bán</span>
-                  <span className="tabular-nums font-medium text-rose-300/90">{format(vn.sell)}</span>
+              ) : vn?.sell != null ? (
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-400">Bán</span>
+                  <span className="tabular-nums font-semibold text-red-400">{format(vn.sell)}</span>
                 </div>
-              </>
-            ) : null}
-            {vn != null && vn.mid != null && !(vn.buy != null && vn.sell != null) ? (
-              <div className="flex justify-between gap-2 rounded-lg bg-slate-950/50 app-pad-md text-xs ring-1 ring-white/5">
-                <span className="text-slate-500">{vn.caption}</span>
-                <span className="tabular-nums font-medium text-slate-200">{format(vn.mid)}</span>
-              </div>
-            ) : null}
-            {vn != null && vn.sell != null && vn.buy == null && vn.mid == null ? (
-              <div className="flex justify-between gap-2 rounded-lg bg-slate-950/50 app-pad-md text-xs ring-1 ring-white/5">
-                <span className="text-slate-500">{vn.caption}</span>
-                <span className="tabular-nums font-medium text-slate-200">{format(vn.sell)}</span>
-              </div>
-            ) : null}
-
-            <div className="flex flex-col rounded-lg bg-slate-950/40 app-pad-md ring-1 ring-white/5 app-vstack-sm">
-              <p className="text-meta text-slate-500">{world.caption}</p>
-              {world.buy != null ? (
-                <div className="flex justify-between gap-3 text-label">
-                  <span className="text-slate-500">Mua quy đổi</span>
-                  <span className="tabular-nums text-slate-400">{format(world.buy)}</span>
-                </div>
-              ) : null}
-              <div className="flex justify-between gap-3 text-xs">
-                <span className="text-slate-500">Bán quy đổi</span>
-                <span className="tabular-nums font-medium text-sky-300/90">{format(world.sell)}</span>
-              </div>
+              ) : (
+                <p className="text-slate-500">Chưa có dữ liệu VN</p>
+              )}
             </div>
           </div>
 
-          <div className="min-[300px]:hidden app-vstack-md text-label text-slate-400">
-            {vn?.sell != null ? (
+          <div className={cardClass}>
+            <div className="mb-3 flex min-w-0 items-center gap-2">
+              <span className="text-base shrink-0" aria-hidden>
+                🌍
+              </span>
+              <span className="truncate text-sm font-medium text-slate-200">{world.caption}</span>
+            </div>
+            <div className="space-y-2 text-sm">
+              {world.buy != null ? (
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-400">Mua qđ</span>
+                  <span className="tabular-nums text-green-400">{format(world.buy)}</span>
+                </div>
+              ) : null}
               <div className="flex justify-between gap-2">
-                <span className="text-slate-500">VN bán</span>
-                <span className="tabular-nums text-slate-200">{format(vn.sell)}</span>
+                <span className="text-slate-400">Bán qđ</span>
+                <span className="tabular-nums font-medium text-slate-100">{format(world.sell!)}</span>
               </div>
-            ) : vn?.mid != null ? (
-              <div className="flex justify-between gap-2">
-                <span className="text-slate-500">VN</span>
-                <span className="tabular-nums text-slate-200">{format(vn.mid)}</span>
-              </div>
-            ) : null}
-            <div className="flex justify-between gap-2">
-              <span className="text-slate-500">TG bán</span>
-              <span className="tabular-nums text-sky-300/80">{format(world.sell)}</span>
             </div>
           </div>
         </div>
       ) : null}
 
       {hasSpread ? (
-        <div className="mt-3 app-vstack-md border-t border-white/10 pt-3">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-meta font-semibold uppercase tracking-wide text-slate-500">Spread</p>
-            <span
-              className={`rounded-full px-2 py-0.5 text-meta font-semibold tabular-nums ring-1 ring-inset ${
-                insight === 'premium'
-                  ? 'bg-rose-500/15 text-rose-300 ring-rose-500/25'
-                  : insight === 'discount'
-                    ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/25'
-                    : 'bg-slate-600/60 text-slate-300 ring-slate-500/30'
-              }`}
+        <div className="rounded-lg border border-white/5 bg-gray-800/30 p-4 ring-1 ring-black/15">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Spread
+            </span>
+            <button
+              type="button"
+              className="app-no-drag rounded-md border border-white/10 bg-slate-900/50 px-2 py-1 text-[11px] font-semibold text-slate-300 transition-colors hover:border-white/20 hover:text-white"
               title={spreadInsightLabelVi(insight)}
             >
               {spreadInsightShortLabelVi(insight)}
-            </span>
+            </button>
           </div>
-          <p className={`text-price font-semibold tabular-nums ${accent}`}>
-            {formatSigned(spreadVnd!)} ({fmtSignedPct(spreadPercent!)})
-          </p>
-          <p className={`text-label font-medium ${accent}`}>{insightHeadlineVi(insight)}</p>
+          <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className={`text-xl font-bold tabular-nums ${spreadAccent}`}>
+              {formatSigned(spreadVnd!)} ({fmtSignedPct(spreadPercent!)})
+            </span>
+            <span className={`text-sm font-medium ${spreadAccent}`}>{insightHeadlineVi(insight)}</span>
+          </div>
 
           {canRelBar ? (
             <SpreadRelBar
@@ -325,9 +322,11 @@ export function ValuationWidget({
             </div>
           )}
         </div>
+      ) : loading && !showWorldCard ? (
+        <p className="text-sm text-slate-500">Đang tải…</p>
       ) : null}
 
-      {footer ? <div className="mt-3 text-meta text-slate-600">{footer}</div> : null}
+      {footer ? <div className="text-xs text-slate-500">{footer}</div> : null}
     </div>
   )
 }

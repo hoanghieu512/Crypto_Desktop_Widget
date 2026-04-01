@@ -134,16 +134,37 @@ export function usePriceAlerts(params: {
     const symbol = normalizeSymbol(a.symbol)
     const targetPrice = Number(a.targetPrice)
     if (!symbol || !Number.isFinite(targetPrice) || targetPrice <= 0) return
+    const condition: AlertCondition = a.condition === 'below' ? 'below' : 'above'
     const next: PriceAlert = {
       id: newId(),
       symbol,
       targetPrice,
-      condition: a.condition === 'below' ? 'below' : 'above',
+      condition,
       enabled: true,
       triggered: false,
       createdAt: Date.now(),
     }
     setAlerts((cur) => {
+      // De-dupe: avoid accidental double-submit creating duplicate rows.
+      const exists = cur.some(
+        (x) =>
+          x.symbol === symbol &&
+          x.condition === condition &&
+          Number.isFinite(x.targetPrice) &&
+          Math.abs(Number(x.targetPrice) - targetPrice) < 1e-12,
+      )
+      if (exists) {
+        const cond = condition === 'above' ? 'above' : 'below'
+        const toast: AlertToast = {
+          id: newId(),
+          title: 'Price Alert',
+          message: `${symbol} alert already exists (${cond} ${targetPrice}).`,
+          createdAt: Date.now(),
+          symbol,
+        }
+        setToasts((prev) => [toast, ...prev].slice(0, 5))
+        return cur
+      }
       const out = [next, ...cur]
       persistAlerts(out)
       return out

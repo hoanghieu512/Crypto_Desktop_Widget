@@ -38,10 +38,12 @@ import {
   type RealtimeConnectionStatus,
   type WatchPriceEntry,
 } from '../hooks/useRealtimePrice'
+import { useSparklineData } from '../hooks/useSparklineData'
 import { useFormat } from '../providers/FormatProvider'
 import { normalizeCryptoPairInput } from '../utils/cryptoPair'
 import { FuturesSimulatorPanel } from './FuturesSimulatorPanel'
 import { SessionBar } from './SessionBar'
+import { Sparkline } from './Sparkline'
 
 export type WatchlistDashboardProps = {
   onConnectionStatusChange?: (status: RealtimeConnectionStatus) => void
@@ -322,15 +324,15 @@ function WatchlistColumnHeader() {
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex min-w-0 items-center justify-between gap-2">
           <div className={`min-w-0 truncate ${cell}`}>Symbol</div>
-          <div className={`shrink-0 text-right ${cell}`}>Giá</div>
+          <div className={`shrink-0 w-[140px] text-right max-[299px]:w-[120px] ${cell}`}>Giá</div>
         </div>
         <div className="flex min-w-0 items-center justify-between gap-2">
           <div className={`min-w-0 truncate ${cell}`}>Loại</div>
-          <div className={`shrink-0 text-right ${cell}`}>Δ24h / Fund</div>
+          <div className={`shrink-0 w-[140px] text-right max-[299px]:w-[120px] ${cell}`}>Δ24h / Fund</div>
         </div>
       </div>
       <div className="w-8 shrink-0" aria-hidden />
-      <div className="w-[76px] shrink-0" aria-hidden />
+      <div className="w-[92px] shrink-0" aria-hidden />
     </div>
   )
 }
@@ -403,6 +405,7 @@ type RowProps = {
   mode: MarketMode
   entry: PriceMapEntry | undefined
   prices: Readonly<Record<string, PriceMapEntry>>
+  sparkline?: number[] | null
   /** ms từ Date.now() — dùng chung một tick để tính stale, tránh mỗi dòng một interval */
   stalenessClock: number
   onRemove: (id: string) => void
@@ -412,10 +415,33 @@ type RowProps = {
   onQuickAddAlert?: (symbolUpper: string, currentPrice: number | null) => void
 }
 
-const badgeBase = 'rounded px-1 py-0.5 text-[9px] font-semibold leading-none sm:px-1.5 sm:text-[10px]'
+const badgeBase =
+  'inline-flex shrink-0 items-center px-2 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide'
 
-const actionBtnClass =
-  'app-no-drag shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium bg-bx-elevated text-bx-secondary transition-colors duration-[120ms] hover:text-bx-primary sm:px-2 sm:text-[11px]'
+const iconBtnClass =
+  'app-no-drag inline-flex size-7 items-center justify-center text-bx-muted transition-colors duration-150 hover:text-bx-secondary'
+
+const togglePillBase =
+  'app-no-drag inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium transition-colors duration-150'
+
+function hasEnabledAlertForSymbol(symbolUpper: string): boolean {
+  try {
+    const raw = localStorage.getItem('price-alerts-v1')
+    if (!raw) return false
+    const j = JSON.parse(raw) as unknown
+    if (!Array.isArray(j)) return false
+    const sym = symbolUpper.trim().toUpperCase()
+    if (!sym) return false
+    return j.some((a: any) => {
+      if (!a) return false
+      const s = typeof a.symbol === 'string' ? a.symbol.trim().toUpperCase() : ''
+      const enabled = Boolean((a as { enabled?: unknown }).enabled)
+      return enabled && s === sym
+    })
+  } catch {
+    return false
+  }
+}
 
 function spotDeltaPercent(
   symbolLower: string,
@@ -433,6 +459,7 @@ const WatchlistRow = memo(function WatchlistRow({
   mode,
   entry,
   prices,
+  sparkline,
   stalenessClock,
   onRemove,
   onToggleRowMarket,
@@ -460,6 +487,7 @@ const WatchlistRow = memo(function WatchlistRow({
   const sym = item.symbol.trim().toLowerCase()
   const display = item.symbol.trim().toUpperCase()
   const hint = basisHint(sym, market, prices)
+  const hasAlert = hasEnabledAlertForSymbol(display)
   const curPrice =
     entry?.market === 'spot'
       ? Number(entry.snapshot.lastPrice)
@@ -473,7 +501,11 @@ const WatchlistRow = memo(function WatchlistRow({
       {onQuickAddAlert ? (
         <button
           type="button"
-          className="app-no-drag rounded-md px-1.5 py-1 text-[12px] text-bx-secondary hover:bg-bx-elevated hover:text-bx-primary"
+          className={`${iconBtnClass} hover:text-bx-yellow ${
+            hasAlert
+              ? 'text-bx-yellow'
+              : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto'
+          }`}
           title="Set alert"
           onClick={(e) => {
             e.stopPropagation()
@@ -481,7 +513,9 @@ const WatchlistRow = memo(function WatchlistRow({
           }}
           aria-label={`Set alert for ${display}`}
         >
-          🔔
+          <span className="text-sm leading-none" aria-hidden>
+            🔔
+          </span>
         </button>
       ) : null}
     </div>
@@ -497,46 +531,51 @@ const WatchlistRow = memo(function WatchlistRow({
   const symbolBadges =
     market === 'futures' ? (
       <>
-        <span className={`${badgeBase} bg-bx-fut-badge-bg text-bx-purple`}>FUT</span>
-        <span className={`${badgeBase} border border-bx-mark-border bg-transparent text-bx-mark-text`}>
-          MARK
-        </span>
+        <span className={`${badgeBase} bg-green-500/20 text-green-400`}>FUT</span>
+        <span className={`${badgeBase} bg-blue-500/20 text-blue-400`}>MARK</span>
       </>
     ) : (
       <>
-        <span className={`${badgeBase} bg-bx-spot-badge-bg text-bx-spot-blue`}>SPOT</span>
-        <span className={`${badgeBase} border border-bx-last-border bg-transparent text-bx-last-text`}>
-          LAST
-        </span>
+        <span className={`${badgeBase} bg-yellow-500/20 text-yellow-400`}>SPOT</span>
+        <span className={`${badgeBase} bg-gray-500/20 text-gray-400`}>LAST</span>
       </>
     )
 
   const actionsCol = (
-    <div className="flex w-[76px] shrink-0 items-center justify-end gap-0.5 self-center sm:w-[80px] sm:gap-1">
-      {mode === 'perCoin' ? (
+    <div className="flex w-[92px] shrink-0 items-center justify-end gap-2 self-center">
+      <div className="flex items-center justify-end gap-2 opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-hover:pointer-events-auto">
+        {mode === 'perCoin' ? (
+          <button
+            type="button"
+            className={`${togglePillBase} ${
+              market === 'spot'
+                ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                : 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
+            }`}
+            title="Đổi Spot / Futures cho dòng này"
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleRowMarket(item.id)
+            }}
+          >
+            {market === 'spot' ? 'FUT' : 'SPOT'}
+          </button>
+        ) : null}
         <button
           type="button"
-          className={actionBtnClass}
-          title="Đổi Spot / Futures cho dòng này"
+          className={`${iconBtnClass} hover:text-loss`}
+          title="Xóa"
+          aria-label={`Xóa ${display}`}
           onClick={(e) => {
             e.stopPropagation()
-            onToggleRowMarket(item.id)
+            onRemove(item.id)
           }}
         >
-          {market === 'spot' ? 'FUT' : 'SPOT'}
+          <span className="text-lg leading-none" aria-hidden>
+            ×
+          </span>
         </button>
-      ) : null}
-      <button
-        type="button"
-        className={actionBtnClass}
-        aria-label={`Xóa ${display}`}
-        onClick={(e) => {
-          e.stopPropagation()
-          onRemove(item.id)
-        }}
-      >
-        Xóa
-      </button>
+      </div>
     </div>
   )
 
@@ -591,7 +630,7 @@ const WatchlistRow = memo(function WatchlistRow({
   const rowShell = (body: ReactNode) => (
     <li ref={setNodeRef} style={sortableStyle} className="list-none">
       <div
-        className={`flex min-w-0 items-start gap-1.5 px-3 py-1.5 max-[299px]:px-2 max-[299px]:py-1 ${rowHover}`}
+        className={`group flex min-w-0 items-start gap-1.5 px-3 py-1.5 max-[299px]:px-2 max-[299px]:py-1 ${rowHover}`}
       >
         {handle}
         {body}
@@ -663,21 +702,30 @@ const WatchlistRow = memo(function WatchlistRow({
             <span title={hint ?? undefined} className="truncate text-[13px] font-semibold text-bx-primary">
               {display}
             </span>
-            <div
-              className={`min-w-0 max-w-[55%] shrink-0 rounded-sm text-right cursor-pointer transition-[filter,color,opacity] duration-[120ms] hover:brightness-110 ${
-                priceStale ? 'opacity-50 ' : ''
-              }${priceFlash ? (priceFlashDir === 'up' ? 'app-price-flash-up ' : priceFlashDir === 'down' ? 'app-price-flash-down ' : 'animate-price-flash ') : ''}${priceTransition}`.trim()}
-              title="Giá realtime"
-            >
-              {Number.isFinite(lastN) ? (
-                <CryptoAmount
-                  raw={price.lastPrice}
-                  className="font-price text-[15px] text-bx-primary"
-                  transitionClass={priceTransition}
-                />
-              ) : (
-                <span className="font-price text-[15px] text-bx-muted">—</span>
-              )}
+            <div className="flex shrink-0 items-center gap-2">
+              <div className="hidden min-[420px]:flex h-[20px] w-[56px] items-center justify-center">
+                {sparkline ? (
+                  <Sparkline data={sparkline} width={56} height={20} className={priceStale ? 'opacity-50' : 'opacity-90'} />
+                ) : (
+                  <div className="h-[18px] w-[56px] rounded bg-bx-elevated/40" aria-hidden />
+                )}
+              </div>
+              <div
+                className={`shrink-0 w-[140px] rounded-sm text-right cursor-pointer transition-[filter,color,opacity] duration-[120ms] hover:brightness-110 max-[299px]:w-[120px] ${
+                  priceStale ? 'opacity-50 ' : ''
+                }${priceFlash ? (priceFlashDir === 'up' ? 'app-price-flash-up ' : priceFlashDir === 'down' ? 'app-price-flash-down ' : 'animate-price-flash ') : ''}${priceTransition}`.trim()}
+                title="Giá realtime"
+              >
+                {Number.isFinite(lastN) ? (
+                  <CryptoAmount
+                    raw={price.lastPrice}
+                    className="font-price text-[15px] text-bx-primary"
+                    transitionClass={priceTransition}
+                  />
+                ) : (
+                  <span className="font-price text-[15px] text-bx-muted">—</span>
+                )}
+              </div>
             </div>
           </div>
           <div className="flex min-w-0 items-center justify-between gap-2">
@@ -715,21 +763,30 @@ const WatchlistRow = memo(function WatchlistRow({
           <span title={hint ?? undefined} className="truncate text-[13px] font-semibold text-bx-primary">
             {display}
           </span>
-          <div
-            className={`min-w-0 max-w-[55%] shrink-0 rounded-sm text-right cursor-pointer transition-[filter,color,opacity] duration-[120ms] hover:brightness-110 ${
-              priceStale ? 'opacity-50 ' : ''
-            }${priceFlash ? (priceFlashDir === 'up' ? 'app-price-flash-up ' : priceFlashDir === 'down' ? 'app-price-flash-down ' : 'animate-price-flash ') : ''}${priceTransition}`.trim()}
-            title="Giá realtime"
-          >
-            {Number.isFinite(markN) ? (
-              <CryptoAmount
-                raw={f.markPrice}
-                className="font-price text-[15px] text-bx-primary"
-                transitionClass={priceTransition}
-              />
-            ) : (
-              <span className="font-price text-[15px] text-bx-muted">—</span>
-            )}
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="hidden min-[420px]:flex h-[20px] w-[56px] items-center justify-center">
+              {sparkline ? (
+                <Sparkline data={sparkline} width={56} height={20} className={priceStale ? 'opacity-50' : 'opacity-90'} />
+              ) : (
+                <div className="h-[18px] w-[56px] rounded bg-bx-elevated/40" aria-hidden />
+              )}
+            </div>
+            <div
+              className={`shrink-0 w-[140px] rounded-sm text-right cursor-pointer transition-[filter,color,opacity] duration-[120ms] hover:brightness-110 max-[299px]:w-[120px] ${
+                priceStale ? 'opacity-50 ' : ''
+              }${priceFlash ? (priceFlashDir === 'up' ? 'app-price-flash-up ' : priceFlashDir === 'down' ? 'app-price-flash-down ' : 'animate-price-flash ') : ''}${priceTransition}`.trim()}
+              title="Giá realtime"
+            >
+              {Number.isFinite(markN) ? (
+                <CryptoAmount
+                  raw={f.markPrice}
+                  className="font-price text-[15px] text-bx-primary"
+                  transitionClass={priceTransition}
+                />
+              ) : (
+                <span className="font-price text-[15px] text-bx-muted">—</span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex min-w-0 items-center justify-between gap-2">
@@ -757,6 +814,7 @@ export function WatchlistDashboard({
   const [draft, setDraft] = useState('sol')
   const [draftMarket, setDraftMarket] = useState<Market>('spot')
   const [stalenessClock, setStalenessClock] = useState(() => Date.now())
+  const [watchToast, setWatchToast] = useState<string | null>(null)
 
   const sortableIds = useMemo(() => items.map((i) => i.id), [items])
 
@@ -808,6 +866,17 @@ export function WatchlistDashboard({
   const { prices, loading, connectionStatus, spot, futures } =
     useRealtimePrice(watchEntries)
 
+  const sparkRequests = useMemo(() => {
+    return items.map((i) => {
+      const m = effectiveMarket(i, marketMode, globalMarket)
+      const symLower = normalizeCryptoPairInput(i.symbol) || i.symbol.trim().toLowerCase()
+      const symbolUpper = symLower.toUpperCase().replace(/[^A-Z0-9]/g, '')
+      return { market: m === 'futures' ? 'futures' : 'spot', symbolUpper } as const
+    })
+  }, [items, marketMode, globalMarket])
+
+  const sparklines = useSparklineData(sparkRequests)
+
   useEffect(() => {
     onConnectionStatusChange?.(connectionStatus)
   }, [connectionStatus, onConnectionStatusChange])
@@ -855,15 +924,16 @@ export function WatchlistDashboard({
   const add = useCallback(() => {
     const sym = normalizeCryptoPairInput(draft)
     if (!sym) return
-    const targetMarket = marketMode === 'global' ? globalMarket : draftMarket
     setItems((prev) => {
-      if (
-        prev.some(
-          (i) =>
-            normalizeCryptoPairInput(i.symbol) === sym &&
-            effectiveMarket(i, marketMode, globalMarket) === targetMarket,
-        )
-      ) {
+      const exists = prev.some((i) => {
+        const s = normalizeCryptoPairInput(i.symbol)
+        if (!s || s !== sym) return false
+        if (marketMode === 'global') return true
+        const m = i.market ?? 'spot'
+        return m === draftMarket
+      })
+      if (exists) {
+        setWatchToast(`${sym.toUpperCase()} already exists in Watchlist.`)
         return prev
       }
       const item: WatchItem = {
@@ -875,6 +945,12 @@ export function WatchlistDashboard({
     })
     setDraft('')
   }, [draft, draftMarket, globalMarket, marketMode])
+
+  useEffect(() => {
+    if (!watchToast) return
+    const id = window.setTimeout(() => setWatchToast(null), 3500)
+    return () => window.clearTimeout(id)
+  }, [watchToast])
 
   const rootRef = useRef<HTMLDivElement>(null)
   const simulatorCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1102,6 +1178,15 @@ export function WatchlistDashboard({
       ref={rootRef}
       className="app-no-drag relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-bx-base"
     >
+      {watchToast ? (
+        <div
+          className="pointer-events-none fixed right-3 top-14 z-[210] w-[min(320px,calc(100%-24px))] rounded-xl border border-bx-border-medium bg-bx-elevated px-3 py-2 shadow-2xl shadow-black/60"
+          role="status"
+        >
+          <p className="text-[12px] font-semibold text-bx-primary">Watchlist</p>
+          <p className="mt-0.5 text-[12px] text-bx-secondary">{watchToast}</p>
+        </div>
+      ) : null}
       <div
         className={`flex min-h-0 flex-1 flex-col overscroll-contain ${
           isSimulatorOpen ? 'overflow-hidden' : 'overflow-y-auto'
@@ -1258,6 +1343,8 @@ export function WatchlistDashboard({
                       normalizeCryptoPairInput(item.symbol) || item.symbol.trim().toLowerCase()
                     const pk = priceMapKey(sym, m)
                     const entry = prices[pk]
+                    const symUpper = sym.toUpperCase().replace(/[^A-Z0-9]/g, '')
+                    const spark = sparklines[`${m === 'futures' ? 'futures' : 'spot'}:${symUpper}`] ?? null
                     return (
                       <WatchlistRow
                         key={item.id}
@@ -1266,6 +1353,7 @@ export function WatchlistDashboard({
                         mode={marketMode}
                         entry={entry}
                         prices={prices}
+                        sparkline={spark}
                         stalenessClock={stalenessClock}
                         onRemove={remove}
                         onToggleRowMarket={toggleRowMarket}

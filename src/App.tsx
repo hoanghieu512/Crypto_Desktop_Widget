@@ -10,6 +10,7 @@ import type { RealtimeConnectionStatus } from './hooks/useRealtimePrice'
 import { usePriceAlerts } from './hooks/usePriceAlerts'
 import { AlertsPanel } from './components/AlertsPanel'
 import { AlertToast } from './components/AlertToast'
+import { BackupImportFlash } from './components/BackupImportFlash'
 
 type Tab = 'crypto' | 'gold' | 'silver'
 
@@ -204,6 +205,7 @@ export default function App() {
         />
 
         <AlertToast items={alerts.toasts} onDismiss={alerts.dismissToast} />
+        <BackupImportFlash />
 
         {electron ? (
           <p className="app-drag min-w-0 shrink-0 border-t border-bx-border-subtle px-2 py-1.5 text-center text-[10px] leading-tight break-words text-bx-muted">

@@ -60,21 +60,6 @@ export function GoldDashboard({ active }: Props) {
     return null
   })()
 
-  const primaryCaption = ready
-    ? 'Giá bán VN / lượng'
-    : worldOk && worldSellVndPerLuong != null
-      ? 'TG quy đổi (bán) / lượng'
-      : 'Giá tham chiếu'
-
-  const primaryPrice: number | string =
-    ready && vnSellVndPerLuong != null
-      ? vnSellVndPerLuong
-      : worldOk && worldSellVndPerLuong != null
-        ? worldSellVndPerLuong
-        : loading
-          ? '…'
-          : '—'
-
   const alert = (
     <div className="mt-2 space-y-2">
       {vnSjcMissing && worldOk ? (
@@ -124,15 +109,13 @@ export function GoldDashboard({ active }: Props) {
             : undefined
         }
       />
+      <div className="rounded-xl border border-white/[0.07] bg-slate-900/70 p-4 ring-1 ring-black/20">
       <ValuationWidget
         asset="gold"
         title="Vàng"
         sourceLine={sourceLine}
         unitLine={unitHint ?? null}
         updatedAt={updatedAt}
-        primaryCaption={primaryCaption}
-        primaryPrice={primaryPrice}
-        changeVsWorldPercent={ready && sp ? sp.spreadPercent : null}
         vn={
           ready
             ? {
@@ -168,6 +151,7 @@ export function GoldDashboard({ active }: Props) {
         }
         onRefresh={() => void refresh()}
       />
+      </div>
     </div>
   )
 }

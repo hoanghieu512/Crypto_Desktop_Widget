@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { arrayMove } from '@dnd-kit/sortable'
 import { priceMapKey, useRealtimePrice, type WatchPriceEntry } from './useRealtimePrice'
 import type { FuturesPosition, FuturesPositionSide, PortfolioState } from '../types/portfolio'
 
@@ -17,6 +18,11 @@ function safeParseState(raw: string | null): PortfolioState {
       .filter((p) => typeof p.id === 'string' && typeof p.symbol === 'string')
       .map((p) => {
         const side: FuturesPositionSide = p.side === 'SHORT' ? 'SHORT' : 'LONG'
+        const marginMode: FuturesPosition['marginMode'] =
+          (p as any).marginMode === 'isolated' ? 'isolated' : 'cross'
+        const initialMarginRaw = Number((p as any).initialMargin)
+        const initialMargin =
+          Number.isFinite(initialMarginRaw) && initialMarginRaw > 0 ? initialMarginRaw : undefined
         const entryPrice = Number(p.entryPrice)
         const quantity = Number(p.quantity)
         const lev = Number(p.leverage)
@@ -36,6 +42,8 @@ function safeParseState(raw: string | null): PortfolioState {
           symbol: String(p.symbol),
           source,
           side,
+          marginMode,
+          initialMargin,
           entryPrice,
           margin,
           quantity,
@@ -109,11 +117,17 @@ export type UsePortfolioResult = {
     margin?: number
     /** Optional (notional USDT). */
     notional?: number
+    /** Optional margin mode. Defaults cross. */
+    marginMode?: 'cross' | 'isolated'
+    /** Optional original margin. */
+    initialMargin?: number
   }) => void
   setSyncedPositions: (items: FuturesPosition[]) => void
   updatePositionNote: (id: string, notes: string) => void
   removePosition: (id: string) => void
   updatePosition: (id: string, patch: Partial<Omit<FuturesPosition, 'id' | 'createdAt'>>) => void
+  /** Reorder manual positions by id (drag & drop). */
+  reorderManualPositions: (activeId: string, overId: string) => void
   clearAll: () => void
 }
 
@@ -147,6 +161,16 @@ export function usePortfolio(enabled: boolean): UsePortfolioResult {
       .filter(Boolean)
       .map((p) => ({ ...p, source: 'synced' as const }))
     setSynced(uniqById(cleaned))
+  }, [])
+
+  const reorderManualPositions = useCallback((activeId: string, overId: string) => {
+    if (!activeId || !overId || activeId === overId) return
+    setManual((cur) => {
+      const oldIndex = cur.findIndex((p) => p.id === activeId)
+      const newIndex = cur.findIndex((p) => p.id === overId)
+      if (oldIndex < 0 || newIndex < 0) return cur
+      return arrayMove(cur, oldIndex, newIndex)
+    })
   }, [])
 
   useEffect(() => {
@@ -235,6 +259,8 @@ export function usePortfolio(enabled: boolean): UsePortfolioResult {
       quantity?: number
       margin?: number
       notional?: number
+      marginMode?: 'cross' | 'isolated'
+      initialMargin?: number
     }) => {
       const symbol = p.symbol.trim().toUpperCase()
       const entryPrice = Number(p.entryPrice)
@@ -286,6 +312,11 @@ export function usePortfolio(enabled: boolean): UsePortfolioResult {
         symbol,
         source: 'manual',
         side: p.side === 'SHORT' ? 'SHORT' : 'LONG',
+        marginMode: p.marginMode === 'isolated' ? 'isolated' : 'cross',
+        initialMargin:
+          p.initialMargin != null && Number.isFinite(Number(p.initialMargin)) && Number(p.initialMargin) > 0
+            ? Number(p.initialMargin)
+            : undefined,
         entryPrice,
         margin,
         quantity,
@@ -345,6 +376,7 @@ export function usePortfolio(enabled: boolean): UsePortfolioResult {
     updatePositionNote,
     removePosition,
     updatePosition,
+    reorderManualPositions,
     clearAll,
   }
 }

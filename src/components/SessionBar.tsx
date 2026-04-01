@@ -1,6 +1,7 @@
 import { memo, useEffect, useState } from 'react'
 import {
   getSession,
+  sessionRangeVn,
   TRADING_SESSION_ORDER,
   type TradingSession,
 } from '../utils/tradingSession'
@@ -8,12 +9,6 @@ import {
 export type SessionBoxProps = {
   name: TradingSession
   active: boolean
-}
-
-function sessionRangeUtc(s: TradingSession): string {
-  if (s === 'ASIA') return '00:00 – 08:00 UTC'
-  if (s === 'EU') return '08:00 – 16:00 UTC'
-  return '16:00 – 24:00 UTC'
 }
 
 function sessionInsight(s: TradingSession): string {
@@ -41,7 +36,7 @@ export const SessionBox = memo(function SessionBox({ name, active }: SessionBoxP
         aria-hidden
       >
         <span className="block text-label font-semibold text-bx-primary">{name}</span>
-        <span className="block">{sessionRangeUtc(name)}</span>
+        <span className="block">{sessionRangeVn(name)}</span>
         <span className="block text-bx-muted">{sessionInsight(name)}</span>
       </span>
     </span>
@@ -63,7 +58,7 @@ export const SessionBar = memo(function SessionBar() {
     <div
       className="app-no-drag flex min-w-0 flex-wrap items-center gap-1"
       role="group"
-      aria-label="Phiên giao dịch UTC (Asia 00–08, EU 08–16, US 16–24)"
+      aria-label="Phiên giao dịch — tooltip giờ Việt Nam UTC+7 (Asia 07–15, EU 15–23, US 23–07)"
     >
       {TRADING_SESSION_ORDER.map((name) => (
         <SessionBox key={name} name={name} active={name === current} />

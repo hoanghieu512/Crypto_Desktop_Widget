@@ -39,12 +39,12 @@ export type AddPositionDraft = {
   symbol: string
   side: FuturesPositionSide
   entryPrice: string
-  quantity: string
+  margin: string
   leverage: string
 }
 
 export type AddPositionFormProps = {
-  onSubmit: (data: { symbol: string; side: FuturesPositionSide; entryPrice: number; quantity: number; leverage: number }) => void
+  onSubmit: (data: { symbol: string; side: FuturesPositionSide; entryPrice: number; margin: number; leverage: number }) => void
   onCancel: () => void
 }
 
@@ -53,7 +53,7 @@ export const AddPositionForm = memo(function AddPositionForm({ onSubmit, onCance
     symbol: '',
     side: 'LONG',
     entryPrice: '',
-    quantity: '',
+    margin: '',
     leverage: '10',
   })
 
@@ -67,11 +67,11 @@ export const AddPositionForm = memo(function AddPositionForm({ onSubmit, onCance
 
   const symNorm = normalizeSymbol(draft.symbol)
   const entry = parsePosNumber(draft.entryPrice)
-  const qty = parsePosNumber(draft.quantity)
+  const margin = parsePosNumber(draft.margin)
   const lev = parsePosNumber(draft.leverage)
 
   const valid =
-    symNorm.length >= 6 && symNorm.endsWith('USDT') && entry != null && qty != null && lev != null
+    symNorm.length >= 6 && symNorm.endsWith('USDT') && entry != null && margin != null && lev != null
 
   useEffect(() => {
     // keep symbol displayed normalized without fighting the cursor too hard
@@ -84,8 +84,8 @@ export const AddPositionForm = memo(function AddPositionForm({ onSubmit, onCance
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     setTouched(true)
-    if (!valid || entry == null || qty == null || lev == null) return
-    onSubmit({ symbol: symNorm, side: draft.side, entryPrice: entry, quantity: qty, leverage: lev })
+    if (!valid || entry == null || margin == null || lev == null) return
+    onSubmit({ symbol: symNorm, side: draft.side, entryPrice: entry, margin, leverage: lev })
   }
 
   const sideBtnBase =
@@ -164,15 +164,16 @@ export const AddPositionForm = memo(function AddPositionForm({ onSubmit, onCance
             />
           </div>
           <div className="app-vstack-sm">
-            <label className={label} htmlFor="pf-qty">Size</label>
+            <label className={label} htmlFor="pf-margin">Margin</label>
             <input
-              id="pf-qty"
+              id="pf-margin"
               className={input}
               inputMode="decimal"
-              value={draft.quantity}
-              onChange={(e) => setDraft((d) => ({ ...d, quantity: e.target.value }))}
-              placeholder="e.g. 0.10"
+              value={draft.margin}
+              onChange={(e) => setDraft((d) => ({ ...d, margin: e.target.value }))}
+              placeholder="e.g. 100"
               autoComplete="off"
+              title="USDT"
             />
           </div>
         </div>

@@ -1,11 +1,33 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import {
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import type { DraggableAttributes } from '@dnd-kit/core'
+import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities'
 import { useBinanceSync } from '../hooks/useBinanceSync'
 import { usePortfolio } from '../hooks/usePortfolio'
 import { useFormat } from '../providers/FormatProvider'
 import { PositionRow } from './PositionRow'
 import { AddPositionForm } from './AddPositionForm'
 import { ApiKeySettings } from './ApiKeySettings'
+import { PortfolioSettingsMenu } from './PortfolioSettingsMenu'
+import { getPnlIntensityClass } from '../utils/formatPnl'
+import { useFundingData } from '../hooks/useFundingData'
+import { adjustedMargin } from '../utils/fundingCalculator'
 
 function fmtSignedPct(p: number): string {
   const sign = p > 0 ? '+' : ''
@@ -22,6 +44,7 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
   const { formatPrice, formatPriceSigned } = useFormat()
   const pf = usePortfolio(active)
   const bx = useBinanceSync(active)
+  const lastSyncedKeyRef = useRef<string>('')
 
   const [open, setOpen] = useState(false)
   const [enter, setEnter] = useState(false)
@@ -40,17 +63,53 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
     }
   }, [open])
 
-  const pnl = pf.totals.totalUnrealizedPnl
-  const roe = pf.totals.totalRoe
-  const tone = pnl >= 0 ? 'text-profit' : 'text-loss'
+  const markBySymbolUpper = useMemo(() => {
+    const out: Record<string, number | null> = {}
+    for (const r of pf.computed) {
+      const sym = String(r.position.symbol ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+      if (!sym) continue
+      if (sym in out) continue
+      out[sym] = r.markPrice
+    }
+    return out
+  }, [pf.computed])
+
+  const funding = useFundingData({ positions: pf.positions, markPriceBySymbolUpper: markBySymbolUpper })
+
+  const totalsWithFunding = useMemo(() => {
+    let totalPricePnl = 0
+    let totalFundingPnl = 0
+    let totalAdjMargin = 0
+    for (const r of pf.computed) {
+      const p = r.position
+      const price = r.unrealizedPnl ?? 0
+      const f = funding.fundingByPositionId[p.id]?.totalFundingPnL ?? 0
+      const adj = adjustedMargin(p, f)
+      totalPricePnl += Number.isFinite(price) ? price : 0
+      totalFundingPnl += Number.isFinite(f) ? f : 0
+      totalAdjMargin += Number.isFinite(adj) && adj > 0 ? adj : 0
+    }
+    const totalPnL = totalPricePnl + totalFundingPnl
+    const roe = totalAdjMargin > 0 ? (totalPnL / totalAdjMargin) * 100 : null
+    return { totalPnL, roe, totalPricePnl, totalFundingPnl, totalAdjMargin }
+  }, [pf.computed, funding.fundingByPositionId])
+
+  const pnl = totalsWithFunding.totalPnL
+  const roe = totalsWithFunding.roe
+  const tone = getPnlIntensityClass(roe)
 
   const summary = useMemo(() => {
     return [
-      { label: 'Total margin', value: formatPrice(pf.totals.totalMargin, 'crypto'), tone: 'text-bx-primary' },
-      { label: 'Unrealized PnL', value: formatPriceSigned(pnl, 'crypto'), tone },
+      { label: 'Total margin', value: formatPrice(totalsWithFunding.totalAdjMargin, 'crypto'), tone: 'text-bx-primary' },
+      {
+        label: 'Unrealized PnL',
+        value: formatPriceSigned(pnl, 'crypto'),
+        tone,
+        sub: `Price ${formatPriceSigned(totalsWithFunding.totalPricePnl, 'crypto')} · Funding ${formatPriceSigned(totalsWithFunding.totalFundingPnl, 'crypto')}`,
+      },
       { label: 'Total ROE', value: roe == null ? '—' : fmtSignedPct(roe), tone },
     ]
-  }, [formatPrice, formatPriceSigned, pf.totals.totalMargin, pnl, roe, tone])
+  }, [formatPrice, formatPriceSigned, totalsWithFunding.totalAdjMargin, totalsWithFunding.totalFundingPnl, totalsWithFunding.totalPricePnl, pnl, roe, tone])
 
   const bxLastSync = useMemo(() => {
     if (!bx.state.lastSyncedAt) return null
@@ -73,6 +132,7 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
         const entry = Number(String(p.entryPrice ?? '').trim())
         const lev = Number(String(p.leverage ?? '').trim())
         const isoMargin = Number(String(p.isolatedMargin ?? '').trim())
+        const marginType = typeof p.marginType === 'string' ? String(p.marginType).toLowerCase() : ''
         if (!symbol || !Number.isFinite(amt) || amt === 0) return null
         if (!Number.isFinite(entry) || entry <= 0) return null
         if (!Number.isFinite(lev) || lev <= 0) return null
@@ -87,6 +147,9 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
           symbol,
           source: 'synced' as const,
           side: side as 'LONG' | 'SHORT',
+          marginMode: marginType === 'isolated' ? 'isolated' : 'cross',
+          initialMargin:
+            marginType === 'isolated' && Number.isFinite(isoMargin) && isoMargin > 0 ? isoMargin : undefined,
           entryPrice: entry,
           margin,
           quantity,
@@ -95,8 +158,78 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
         }
       })
       .filter(Boolean) as any
+    const key = Array.isArray(positions) ? positions.map((p: any) => String(p?.id ?? '')).join('|') : ''
+    if (key && key === lastSyncedKeyRef.current) return
+    lastSyncedKeyRef.current = key
     pf.setSyncedPositions(positions)
-  }, [bx.state.rawPositions, pf])
+  }, [bx.state.rawPositions, pf.setSyncedPositions])
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  function DragHandle({
+    disabled,
+    setActivatorNodeRef,
+    attributes,
+    listeners,
+  }: {
+    disabled?: boolean
+    setActivatorNodeRef: (el: HTMLElement | null) => void
+    attributes: DraggableAttributes
+    listeners: SyntheticListenerMap | undefined
+  }) {
+    return (
+      <button
+        type="button"
+        ref={setActivatorNodeRef}
+        disabled={disabled}
+        className="app-no-drag flex min-h-[3.25rem] w-7 shrink-0 cursor-grab touch-none items-center justify-center self-stretch text-bx-muted hover:text-bx-secondary active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-40"
+        aria-label="Kéo để đổi thứ tự"
+        {...attributes}
+        {...listeners}
+      >
+        <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+          <circle cx="6" cy="5" r="1.5" />
+          <circle cx="14" cy="5" r="1.5" />
+          <circle cx="6" cy="10" r="1.5" />
+          <circle cx="14" cy="10" r="1.5" />
+          <circle cx="6" cy="15" r="1.5" />
+          <circle cx="14" cy="15" r="1.5" />
+        </svg>
+      </button>
+    )
+  }
+
+  function SortableManualRow({ row }: { row: import('../hooks/usePortfolio').PositionComputed }) {
+    const id = row.position.id
+    const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
+      useSortable({ id })
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.8 : undefined,
+    } as const
+
+    return (
+      <PositionRow
+        row={row}
+        onDelete={pf.removePosition}
+        onUpdateNote={pf.updatePositionNote}
+        funding={funding.fundingByPositionId[row.position.id]}
+        setNodeRef={setNodeRef as any}
+        style={style}
+        dragHandle={
+          <DragHandle
+            setActivatorNodeRef={setActivatorNodeRef}
+            attributes={attributes}
+            listeners={listeners}
+          />
+        }
+      />
+    )
+  }
 
   return (
     <div
@@ -162,14 +295,7 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
                 </span>
               </div>
             ) : null}
-            <button
-              type="button"
-              className="app-no-drag flex h-9 w-9 items-center justify-center rounded-lg border border-bx-border-medium bg-bx-input text-bx-secondary hover:text-bx-primary"
-              onClick={() => setSettingsOpen(true)}
-              title="Binance API settings"
-            >
-              ⚙
-            </button>
+            <PortfolioSettingsMenu active={active} onOpenApiSettings={() => setSettingsOpen(true)} />
             <button
               type="button"
               className="app-no-drag rounded-lg bg-bx-yellow px-3 py-2 text-label font-semibold text-bx-add-fg hover:opacity-95"
@@ -197,6 +323,9 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
             <div key={s.label} className="rounded-xl border border-white/[0.06] bg-bx-base/40 app-pad-md">
               <p className="text-meta uppercase tracking-wide text-bx-muted">{s.label}</p>
               <p className={`mt-1 font-mono text-price font-semibold tabular-nums ${s.tone}`}>{s.value}</p>
+              {'sub' in s && (s as any).sub ? (
+                <p className="mt-1 text-[11px] text-bx-muted">{(s as any).sub}</p>
+              ) : null}
             </div>
           ))}
         </div>
@@ -224,7 +353,12 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
                   {pf.computed
                     .filter((r) => r.position.source === 'synced')
                     .map((row) => (
-                      <PositionRow key={row.position.id} row={row} onDelete={pf.removePosition} />
+                      <PositionRow
+                        key={row.position.id}
+                        row={row}
+                        onDelete={pf.removePosition}
+                        funding={funding.fundingByPositionId[row.position.id]}
+                      />
                     ))}
                 </ul>
               </div>
@@ -233,18 +367,30 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
             {pf.manualPositions.length > 0 ? (
               <div className="app-vstack-sm">
                 <p className="text-meta font-semibold uppercase tracking-wide text-bx-muted">Manual</p>
-                <ul className="flex flex-col gap-2">
-                  {pf.computed
-                    .filter((r) => r.position.source !== 'synced')
-                    .map((row) => (
-                      <PositionRow
-                        key={row.position.id}
-                        row={row}
-                        onDelete={pf.removePosition}
-                        onUpdateNote={pf.updatePositionNote}
-                      />
-                    ))}
-                </ul>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={(e: DragEndEvent) => {
+                    const over = e.over
+                    if (!over) return
+                    const activeId = String(e.active.id)
+                    const overId = String(over.id)
+                    pf.reorderManualPositions(activeId, overId)
+                  }}
+                >
+                  <SortableContext
+                    items={pf.manualPositions.map((p) => p.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <ul className="flex flex-col gap-2">
+                      {pf.computed
+                        .filter((r) => r.position.source !== 'synced')
+                        .map((row) => (
+                          <SortableManualRow key={row.position.id} row={row} />
+                        ))}
+                    </ul>
+                  </SortableContext>
+                </DndContext>
               </div>
             ) : null}
           </div>

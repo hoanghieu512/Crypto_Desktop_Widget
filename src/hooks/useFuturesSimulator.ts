@@ -24,6 +24,8 @@ export type UseFuturesSimulatorResult = {
   setSl: Dispatch<SetStateAction<string>>
   side: FuturesSide
   setSide: Dispatch<SetStateAction<FuturesSide>>
+  marginMode: 'cross' | 'isolated'
+  setMarginMode: Dispatch<SetStateAction<'cross' | 'isolated'>>
   metrics: FuturesSimulatorMetrics
   reset: () => void
 }
@@ -78,6 +80,7 @@ type SavedSimState = {
   tp: string
   sl: string
   side: FuturesSide
+  marginMode?: 'cross' | 'isolated'
 }
 
 const STORAGE_KEY = 'futures-simulator-state-v1'
@@ -120,6 +123,7 @@ export function loadSavedState(symbol: string): SavedSimState | null {
     tp: typeof s.tp === 'string' ? s.tp : '',
     sl: typeof s.sl === 'string' ? s.sl : '',
     side: s.side === 'SHORT' ? 'SHORT' : 'LONG',
+    marginMode: (s as any).marginMode === 'isolated' ? 'isolated' : 'cross',
   }
 }
 
@@ -155,6 +159,7 @@ export function useFuturesSimulator(options: {
   const [tp, setTp] = useState('')
   const [sl, setSl] = useState('')
   const [side, setSide] = useState<FuturesSide>('LONG')
+  const [marginMode, setMarginMode] = useState<'cross' | 'isolated'>('cross')
 
   const entrySeededRef = useRef(false)
   const savedLoadedRef = useRef(false)
@@ -177,6 +182,7 @@ export function useFuturesSimulator(options: {
     setTp(saved.tp)
     setSl(saved.sl)
     setSide(saved.side)
+    setMarginMode(saved.marginMode === 'isolated' ? 'isolated' : 'cross')
     savedLoadedRef.current = true
     entrySeededRef.current = true
   }, [symbol, symbolKey])
@@ -198,12 +204,12 @@ export function useFuturesSimulator(options: {
     if (saveTimerRef.current != null) window.clearTimeout(saveTimerRef.current)
     saveTimerRef.current = window.setTimeout(() => {
       saveTimerRef.current = null
-      saveState(k, { entryPrice, leverage, positionSize, tp, sl, side })
+      saveState(k, { entryPrice, leverage, positionSize, tp, sl, side, marginMode })
     }, 500)
     return () => {
       if (saveTimerRef.current != null) window.clearTimeout(saveTimerRef.current)
     }
-  }, [symbol, entryPrice, leverage, positionSize, tp, sl, side])
+  }, [symbol, entryPrice, leverage, positionSize, tp, sl, side, marginMode])
 
   const reset = () => {
     setEntryPrice('')
@@ -212,6 +218,7 @@ export function useFuturesSimulator(options: {
     setTp('')
     setSl('')
     setSide('LONG')
+    setMarginMode('cross')
     clearSavedState(symbol)
     entrySeededRef.current = false
     savedLoadedRef.current = false
@@ -277,6 +284,8 @@ export function useFuturesSimulator(options: {
     setSl,
     side,
     setSide,
+    marginMode,
+    setMarginMode,
     metrics,
     reset,
   }

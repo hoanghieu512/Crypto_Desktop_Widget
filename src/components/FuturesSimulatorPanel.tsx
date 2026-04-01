@@ -1,6 +1,7 @@
-import { memo, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useFuturesSimulator } from '../hooks/useFuturesSimulator'
 import { usePortfolio } from '../hooks/usePortfolio'
+import { fetchCurrentFundingRate } from '../api/fundingRate'
 import {
   buildLadderLevels,
   highlightLevelForMark,
@@ -9,6 +10,7 @@ import {
   toLadderInputString,
 } from '../utils/futuresPriceLadder'
 import { formatSize } from '../utils/formatNumber'
+import { getPnlIntensityClass } from '../utils/formatPnl'
 
 type LadderTargetField = 'entry' | 'tp' | 'sl'
 
@@ -77,6 +79,29 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
   const { pnl, pnlPercent, tpPnl, slPnl, riskReward, liquidationPrice } = sim.metrics
   const pf = usePortfolio(false)
 
+  const [fundingInfo, setFundingInfo] = useState<{ fundingRate: number; nextFundingTime: number } | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    const sym = String(symbol ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+    if (!sym) return
+    void fetchCurrentFundingRate(sym).then((r) => {
+      if (cancelled) return
+      if (!r) return
+      setFundingInfo({ fundingRate: r.fundingRate, nextFundingTime: r.nextFundingTime })
+    })
+    const id = window.setInterval(() => {
+      void fetchCurrentFundingRate(sym).then((r) => {
+        if (cancelled) return
+        if (!r) return
+        setFundingInfo({ fundingRate: r.fundingRate, nextFundingTime: r.nextFundingTime })
+      })
+    }, 180_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [symbol])
+
   const [ladderTarget, setLadderTarget] = useState<LadderTargetField>('entry')
   const [pulseField, setPulseField] = useState<LadderTargetField | null>(null)
   const pulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -135,8 +160,7 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
   const segOn = 'bg-amber-500/25 text-amber-100 shadow-sm'
   const segOff = 'bg-neutral-800/60 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300'
 
-  const pnlTone =
-    pnl == null ? 'text-neutral-300' : pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'
+  const pnlTone = pnl == null ? 'text-neutral-300' : getPnlIntensityClass(pnlPercent)
 
   const longOn =
     sim.side === 'LONG'
@@ -165,7 +189,19 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
     marginUsdtN != null &&
     marginUsdtN > 0
 
-  const saveHint = canSave ? '' : 'Fill required fields (Entry, Size, Lev)'
+  const saveHint = canSave ? '' : 'Fill required fields (Entry, Margin, Lev)'
+
+  const fundingImpact = useMemo(() => {
+    if (!fundingInfo || notionalUsdtN == null || notionalUsdtN <= 0) return null
+    const rate = fundingInfo.fundingRate
+    if (!Number.isFinite(rate)) return null
+    const sign = sim.side === 'SHORT' ? 1 : -1
+    const estDaily = notionalUsdtN * rate * 3 * sign
+    const tone = estDaily >= 0 ? 'text-emerald-400/90' : 'text-rose-400/90'
+    const ratePct = `${rate >= 0 ? '+' : ''}${(rate * 100).toFixed(4)}%`
+    const est = `${estDaily >= 0 ? '+' : '-'}$${Math.abs(estDaily).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    return { ratePct, est, tone, nextFundingTime: fundingInfo.nextFundingTime }
+  }, [fundingInfo, notionalUsdtN, sim.side])
 
   const handleSave = () => {
     if (!canSave || entryN == null || levN == null || marginUsdtN == null) return
@@ -180,6 +216,8 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
       margin: marginUsdtN,
       quantity,
       leverage: levN,
+      marginMode: sim.marginMode,
+      initialMargin: marginUsdtN,
     })
 
     setJustSaved(true)
@@ -381,6 +419,35 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
             </div>
           </div>
 
+        <div className="flex min-w-0 justify-center">
+          <div className="inline-flex rounded-lg border border-white/10 bg-neutral-950/20 p-0.5">
+            <button
+              type="button"
+              className={`app-no-drag rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                sim.marginMode === 'cross'
+                  ? 'bg-blue-500/20 text-blue-400'
+                  : 'text-neutral-500 hover:text-neutral-200'
+              }`}
+              onClick={() => sim.setMarginMode('cross')}
+              title="Cross margin"
+            >
+              CROSS
+            </button>
+            <button
+              type="button"
+              className={`app-no-drag rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                sim.marginMode === 'isolated'
+                  ? 'bg-blue-500/20 text-blue-400'
+                  : 'text-neutral-500 hover:text-neutral-200'
+              }`}
+              onClick={() => sim.setMarginMode('isolated')}
+              title="Isolated margin"
+            >
+              ISOLATED
+            </button>
+          </div>
+        </div>
+
           <div className="grid min-w-0 grid-cols-2 gap-2">
             <div className="min-w-0">
               <label className={labelClass} htmlFor="fs-tp">
@@ -447,6 +514,13 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
                 {formatPct(pnlPercent)}
               </span>
             </div>
+            {fundingImpact ? (
+              <p className={`text-center text-[11px] font-mono tabular-nums ${fundingImpact.tone}`}>
+                Funding {fundingImpact.ratePct} · Est. daily {fundingImpact.est}
+              </p>
+            ) : (
+              <p className="text-center text-[11px] text-neutral-500">Funding …</p>
+            )}
           </div>
 
           <div className="app-divider my-2" />
