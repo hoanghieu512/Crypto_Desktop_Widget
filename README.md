@@ -6,7 +6,7 @@ Widget desktop và web theo dõi **giá crypto** (Binance realtime), **vàng** v
 
 ## Overview
 
-Ứng dụng **React + Vite**, có thể chạy trong trình duyệt hoặc đóng gói **Electron** (cửa sổ nhỏ, always-on-top). Dữ liệu crypto qua **WebSocket** Binance; vàng/bạc qua **REST** và polling định kỳ. Watchlist crypto lưu **localStorage**, không cần backend riêng.
+Ứng dụng **React + Vite**, có thể chạy trong trình duyệt hoặc đóng gói **Electron** (cửa sổ nhỏ, always-on-top). Dữ liệu crypto qua **WebSocket** Binance; vàng/bạc qua **REST** và polling định kỳ. Trạng thái quan trọng (watchlist, portfolio, simulator, cảnh báo giá, credentials Binance nếu bật đồng bộ) lưu **localStorage** — không cần backend riêng.
 
 Thanh cuộn trong app dùng kiểu **overlay** (ẩn mặc định, hé hiện khi hover) để giao diện gọn, đặc biệt trên Electron.
 
@@ -16,7 +16,15 @@ Chi tiết kiến trúc, luồng dữ liệu và hạn chế: xem **[PROJECT_OVE
 
 ## Features
 
-- **Crypto** — watchlist cặp USDT, Spot / Futures (mark), sắp xếp kéo thả, phiên giao dịch UTC (Asia / EU / US).
+- **Crypto** — watchlist cặp USDT, Spot / Futures (mark), giao diện dark kiểu Binance/Bybit (toolbar, header cột, status bar), sắp xếp kéo thả, phiên giao dịch UTC (Asia / EU / US).
+  - **Sparkline** — biểu đồ mini SVG theo dòng (dữ liệu Klines REST); lên = xanh, xuống = đỏ.
+  - **Funding rate** — hiện rate hiện tại + thời gian kế tiếp trên status bar khi đang xem cặp Futures.
+  - **Connection status dot** — chấm xanh/vàng/đỏ trên header tab Crypto phản ánh trạng thái WebSocket.
+- **Price alerts (crypto)** — cảnh báo giá Above/Below, toast nổi (**AlertToast**) + tuỳ chọn âm thanh + thông báo hệ thống (khi được cấp quyền); thêm nhanh từ icon chuông trên mỗi dòng watchlist; panel quản lý từ nút **Alerts** trên tab Crypto.
+- **Keyboard shortcuts** — `1`/`2`/`3` đổi tab; `P` mở Portfolio; `A` mở Alerts; `/` focus ô tìm cặp; `R` làm mới tab hiện tại; `?` xem trợ giúp phím tắt; `Esc` đóng panel/modal (xem modal trợ giúp để biết đầy đủ).
+- **Loading & errors (UX)** — skeleton (watchlist, vàng/bạc, portfolio) khi tải dữ liệu; banner kết nối + **Thử lại** khi WebSocket lỗi/đang kết nối lại; thông báo lỗi thân thiện (tiếng Việt) + retry cho gold/silver/sync Binance/funding/sparkline; toast lỗi ngắn khi sync Binance hoặc đầy `localStorage`.
+- **Stale / offline banner (vàng/bạc)** — banner cảnh báo khi trình duyệt mất mạng hoặc đang hiển thị dữ liệu cache (hiện thời gian cache, nút **Làm mới**).
+- **Price movement strip (vàng/bạc)** — mini sparkline + % thay đổi + badge biến động (Low/Med/High) trên card kim loại, dựa trên lịch sử giá ngắn hạn.
 - **Futures Simulator** — mở từ dòng **Futures** trong watchlist: panel nổi (snap mép phải, có thể kéo + snap cạnh), làm mờ nền, đóng bằng **ESC** hoặc click ra ngoài.  
   - **Terminology (Binance-style)**: user nhập **MARGIN (USDT)**, chọn **LEVERAGE** → app tính **NOTIONAL = margin × lev** và **SIZE (coins) = notional / entry**.
   - **State persistence** theo symbol (đóng/mở lại không mất Entry/Margin/Lev/TP/SL/Side) + nút **Reset**.
@@ -26,11 +34,12 @@ Chi tiết kiến trúc, luồng dữ liệu và hạn chế: xem **[PROJECT_OVE
 - **Định dạng** — hiển thị số theo `FormatProvider` (VND/USD, v.v.).
 - **Interaction system (subtle)** — tooltip phiên (3 dòng, delay ~140ms), hover nhẹ trên dòng watchlist và giá, focus ring tinh tế cho input, flash giá lên/xuống rất nhẹ.
 - **Portfolio (Futures)** — quản lý vị thế futures theo kiểu Binance:
-  - **Manual positions**: nhập tay (Add/Clear/Delete).
+  - **Manual positions**: nhập tay (Add/Clear/Delete); có trường **ghi chú** (tùy chọn, tối đa 500 ký tự).
   - **Binance API sync (READ-ONLY)**: đồng bộ từ tài khoản Binance Futures qua endpoint `GET /fapi/v2/positionRisk` (không có trade/withdraw).  
     - Auto-refresh ~60s khi mở panel, có nút **Sync** + hiển thị trạng thái/last synced.
     - Hỗ trợ **Mainnet/Testnet**.
     - **Synced positions** là read-only (không có nút Delete).
+  - **Backup / import** — menu **⚙** trên panel Portfolio: tải file JSON (watchlist, portfolio, alerts, simulator) và khôi phục có xác nhận.
 
 ---
 
@@ -42,7 +51,7 @@ Chi tiết kiến trúc, luồng dữ liệu và hạn chế: xem **[PROJECT_OVE
 | Build | Vite 8 |
 | Desktop | Electron |
 | Realtime | WebSocket (Binance spot + futures mark) |
-| Lưu trữ cục bộ | `localStorage` (watchlist) |
+| Lưu trữ cục bộ | `localStorage` (watchlist, portfolio, simulator, price alerts, cài đặt alerts; API keys Binance mã hoá) |
 | Binance sync | REST (signed HMAC SHA256 via WebCrypto) |
 
 ---
@@ -50,7 +59,7 @@ Chi tiết kiến trúc, luồng dữ liệu và hạn chế: xem **[PROJECT_OVE
 ## Design tokens (Tailwind)
 
 - **Tailwind config**: `tailwind.config.js` (typography tokens như `text-meta`/`text-price`/`text-pnl`, semantic colors như `text-profit`/`text-loss`, radius tokens, `shadow-panel`).
-- **Utilities bổ sung**: `src/index.css` (`app-panel`, `app-vstack-*`, `app-tooltip`, hiệu ứng flash/pulse rất nhẹ).
+- **Utilities bổ sung**: `src/index.css` (`app-panel`, `app-vstack-*`, `app-tooltip`, hiệu ứng flash/pulse rất nhẹ, token `bx-*`, shimmer skeleton `.skeleton-shimmer`).
 
 ---
 

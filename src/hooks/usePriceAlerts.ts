@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { showErrorToast } from '../utils/appToast'
+import { ViErrors } from '../utils/friendlyErrors'
 import type { PriceAlert, PriceAlertSettings, AlertCondition } from '../types/alerts'
 
 const STORAGE_KEY = 'price-alerts-v1'
@@ -52,7 +54,7 @@ function persistAlerts(alerts: PriceAlert[]) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(alerts))
     window.dispatchEvent(new CustomEvent(EVT))
   } catch {
-    /* ignore */
+    showErrorToast(ViErrors.storageTitle, ViErrors.storageMessage)
   }
 }
 
@@ -61,7 +63,7 @@ function persistSettings(s: PriceAlertSettings) {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(s))
     window.dispatchEvent(new CustomEvent(EVT))
   } catch {
-    /* ignore */
+    showErrorToast(ViErrors.storageTitle, ViErrors.storageMessage)
   }
 }
 
@@ -101,6 +103,7 @@ export function usePriceAlerts(params: {
   settings: PriceAlertSettings
   toasts: AlertToast[]
   activeEnabledCount: number
+  storageHydrated: boolean
   addAlert: (a: { symbol: string; condition: AlertCondition; targetPrice: number }) => void
   updateAlert: (id: string, patch: Partial<Omit<PriceAlert, 'id' | 'createdAt'>>) => void
   deleteAlert: (id: string) => void
@@ -108,9 +111,16 @@ export function usePriceAlerts(params: {
   setSoundEnabled: (v: boolean) => void
   dismissToast: (id: string) => void
 } {
-  const [alerts, setAlerts] = useState<PriceAlert[]>(() => safeParseAlerts(localStorage.getItem(STORAGE_KEY)))
-  const [settings, setSettings] = useState<PriceAlertSettings>(() => safeParseSettings(localStorage.getItem(SETTINGS_KEY)))
+  const [alerts, setAlerts] = useState<PriceAlert[]>([])
+  const [settings, setSettings] = useState<PriceAlertSettings>({ v: 1, soundEnabled: false })
+  const [storageHydrated, setStorageHydrated] = useState(false)
   const [toasts, setToasts] = useState<AlertToast[]>([])
+
+  useLayoutEffect(() => {
+    setAlerts(safeParseAlerts(localStorage.getItem(STORAGE_KEY)))
+    setSettings(safeParseSettings(localStorage.getItem(SETTINGS_KEY)))
+    setStorageHydrated(true)
+  }, [])
 
   useEffect(() => {
     const on = () => {
@@ -267,6 +277,7 @@ export function usePriceAlerts(params: {
     settings,
     toasts,
     activeEnabledCount,
+    storageHydrated,
     addAlert,
     updateAlert,
     deleteAlert,

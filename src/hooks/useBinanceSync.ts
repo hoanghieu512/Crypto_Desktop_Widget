@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchFuturesPositions, type BinanceFetchError } from '../api/binanceAccount'
 import { decryptString, encryptString, type EncryptedPayload } from '../utils/encryption'
+import { showErrorToast } from '../utils/appToast'
+import { binanceErrorToVi } from '../utils/friendlyErrors'
 
 const CREDS_KEY = 'binance-api-credentials'
 const BASE_URL_KEY = 'binance-api-base-url'
@@ -46,6 +48,7 @@ function prettyErr(e: unknown): string {
 
 export function useBinanceSync(enabled: boolean): {
   state: BinanceSyncState
+  isSyncing: boolean
   setBaseUrl: (url: string) => void
   loadCredentials: () => Promise<{ apiKey: string; secretKey: string } | null>
   saveCredentials: (apiKey: string, secretKey: string) => Promise<void>
@@ -143,12 +146,20 @@ export function useBinanceSync(enabled: boolean): {
       setStatus('connected')
     } catch (e) {
       setStatus('error')
-      setError(prettyErr(e))
+      const msg = prettyErr(e)
+      setError(msg)
+      const now = Date.now()
+      if (now - lastErrorToastAt.current > 45_000) {
+        lastErrorToastAt.current = now
+        const vi = binanceErrorToVi(msg)
+        showErrorToast(vi.title, vi.message)
+      }
     } finally {
       setSyncing(false)
     }
   }, [doFetch, enabled])
 
+  const lastErrorToastAt = useRef(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   useEffect(() => {
     if (!enabled) return
@@ -174,6 +185,7 @@ export function useBinanceSync(enabled: boolean): {
       baseUrl,
       rawPositions,
     },
+    isSyncing: syncing,
     setBaseUrl,
     loadCredentials,
     saveCredentials,

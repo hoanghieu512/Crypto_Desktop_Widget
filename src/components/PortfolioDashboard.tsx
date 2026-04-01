@@ -28,6 +28,9 @@ import { PortfolioSettingsMenu } from './PortfolioSettingsMenu'
 import { getPnlIntensityClass } from '../utils/formatPnl'
 import { useFundingData } from '../hooks/useFundingData'
 import { adjustedMargin } from '../utils/fundingCalculator'
+import { PortfolioSkeleton } from './PortfolioSkeleton'
+import { ErrorState } from './ErrorState'
+import { binanceErrorToVi } from '../utils/friendlyErrors'
 
 function fmtSignedPct(p: number): string {
   const sign = p > 0 ? '+' : ''
@@ -231,6 +234,10 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
     )
   }
 
+  if (!pf.storageHydrated) {
+    return <PortfolioSkeleton embedded={embedded} />
+  }
+
   return (
     <div
       className={`app-no-drag relative flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden ${
@@ -318,16 +325,51 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-3 gap-2">
+        {bx.state.hasCredentials && bx.state.status === 'error' && bx.state.error ? (
+          <div className="mt-2">
+            <ErrorState
+              compact
+              title={binanceErrorToVi(bx.state.error).title}
+              message={binanceErrorToVi(bx.state.error).message}
+              onRetry={() => void bx.syncNow()}
+            />
+          </div>
+        ) : null}
+
+        {funding.error ? (
+          <div className="mt-2">
+            <ErrorState compact title="Funding" message={funding.error} onRetry={funding.retry} />
+          </div>
+        ) : null}
+
+        <div
+          className={`relative mt-3 grid grid-cols-3 gap-2 ${
+            funding.isLoading && pf.positions.length > 0 ? 'min-h-[5.5rem]' : ''
+          }`}
+        >
           {summary.map((s) => (
             <div key={s.label} className="rounded-xl border border-white/[0.06] bg-bx-base/40 app-pad-md">
               <p className="text-meta uppercase tracking-wide text-bx-muted">{s.label}</p>
               <p className={`mt-1 font-mono text-price font-semibold tabular-nums ${s.tone}`}>{s.value}</p>
               {'sub' in s && (s as any).sub ? (
-                <p className="mt-1 text-[11px] text-bx-muted">{(s as any).sub}</p>
+                <p
+                  className={`mt-1 text-[11px] text-bx-muted ${
+                    funding.isLoading && pf.positions.length > 0 ? 'opacity-40' : ''
+                  }`}
+                >
+                  {(s as any).sub}
+                </p>
               ) : null}
             </div>
           ))}
+          {funding.isLoading && pf.positions.length > 0 ? (
+            <div
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-1 overflow-hidden rounded-full bg-bx-border-subtle/80"
+              aria-hidden
+            >
+              <div className="skeleton-shimmer h-full w-full rounded-full bg-bx-elevated opacity-90" />
+            </div>
+          ) : null}
         </div>
       </div>
 

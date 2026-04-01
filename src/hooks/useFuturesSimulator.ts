@@ -27,6 +27,8 @@ export type UseFuturesSimulatorResult = {
   marginMode: 'cross' | 'isolated'
   setMarginMode: Dispatch<SetStateAction<'cross' | 'isolated'>>
   metrics: FuturesSimulatorMetrics
+  /** False for one frame while restoring saved inputs per symbol */
+  stateHydrated: boolean
   reset: () => void
 }
 
@@ -160,6 +162,7 @@ export function useFuturesSimulator(options: {
   const [sl, setSl] = useState('')
   const [side, setSide] = useState<FuturesSide>('LONG')
   const [marginMode, setMarginMode] = useState<'cross' | 'isolated'>('cross')
+  const [stateHydrated, setStateHydrated] = useState(false)
 
   const entrySeededRef = useRef(false)
   const savedLoadedRef = useRef(false)
@@ -168,23 +171,30 @@ export function useFuturesSimulator(options: {
   useEffect(() => {
     entrySeededRef.current = false
     savedLoadedRef.current = false
+    setStateHydrated(false)
   }, [symbolKey])
 
   // Load persisted state per symbol (if exists). This runs on open/reopen and on symbol switch.
   useEffect(() => {
     const k = normalizeSymbolKey(symbol)
-    if (!k) return
+    if (!k) {
+      setStateHydrated(true)
+      return
+    }
     const saved = loadSavedState(k)
-    if (!saved) return
-    setEntryPrice(saved.entryPrice)
-    setLeverage(saved.leverage)
-    setPositionSize(saved.positionSize)
-    setTp(saved.tp)
-    setSl(saved.sl)
-    setSide(saved.side)
-    setMarginMode(saved.marginMode === 'isolated' ? 'isolated' : 'cross')
-    savedLoadedRef.current = true
-    entrySeededRef.current = true
+    if (saved) {
+      setEntryPrice(saved.entryPrice)
+      setLeverage(saved.leverage)
+      setPositionSize(saved.positionSize)
+      setTp(saved.tp)
+      setSl(saved.sl)
+      setSide(saved.side)
+      setMarginMode(saved.marginMode === 'isolated' ? 'isolated' : 'cross')
+      savedLoadedRef.current = true
+      entrySeededRef.current = true
+    }
+    const id = requestAnimationFrame(() => setStateHydrated(true))
+    return () => cancelAnimationFrame(id)
   }, [symbol, symbolKey])
 
   useEffect(() => {
@@ -287,6 +297,7 @@ export function useFuturesSimulator(options: {
     marginMode,
     setMarginMode,
     metrics,
+    stateHydrated,
     reset,
   }
 }

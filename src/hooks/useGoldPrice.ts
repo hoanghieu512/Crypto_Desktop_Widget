@@ -123,6 +123,7 @@ export function useGoldPrice(enabled: boolean) {
   } | null>(null)
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(enabled)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fxError, setFxError] = useState<string | null>(null)
   const [goldFetchWarning, setGoldFetchWarning] = useState<string | null>(null)
@@ -146,7 +147,9 @@ export function useGoldPrice(enabled: boolean) {
 
   const fetchAll = useCallback(async () => {
     if (!enabled) return
-    if (firstLoadRef.current) setLoading(true)
+    const initial = firstLoadRef.current
+    if (initial) setLoading(true)
+    else setIsRefreshing(true)
     setError(null)
     setFxError(null)
     setGoldFetchWarning(null)
@@ -220,6 +223,7 @@ export function useGoldPrice(enabled: boolean) {
     if (!enabled) {
       firstLoadRef.current = true
       setLoading(false)
+      setIsRefreshing(false)
       setStaleMeta({ isStale: false, cachedAt: null })
       setVnSjcMissing(false)
       return
@@ -297,6 +301,8 @@ export function useGoldPrice(enabled: boolean) {
   return {
     ...snapshot,
     loading,
+    isLoading: loading,
+    isRefreshing,
     error,
     fxError,
     goldFetchWarning,
@@ -305,5 +311,6 @@ export function useGoldPrice(enabled: boolean) {
     cachedAt: staleMeta.cachedAt,
     staleBanner,
     refresh: fetchAll,
+    retry: fetchAll,
   }
 }

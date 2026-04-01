@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { VN_GOLD_ROWS, useVnMetalPrices } from '../hooks/useVnMetalPrices'
 import { useFormatPrice } from '../hooks/useFormatPrice'
 import {
@@ -28,6 +29,17 @@ export function PreciousMetalsPanel({ active }: Props) {
     updatedAt,
     refresh,
   } = useVnMetalPrices(active)
+
+  useEffect(() => {
+    if (!active) return
+    const on = (e: Event) => {
+      const ce = e as CustomEvent<{ tab?: string }>
+      if (ce.detail?.tab && ce.detail.tab !== 'gold') return
+      void refresh()
+    }
+    window.addEventListener('app:refresh', on as EventListener)
+    return () => window.removeEventListener('app:refresh', on as EventListener)
+  }, [active, refresh])
 
   const { format: fmtLevel, unitHint } = useFormatPrice('gold')
 

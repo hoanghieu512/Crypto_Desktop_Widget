@@ -11,6 +11,7 @@ import {
 } from '../utils/futuresPriceLadder'
 import { formatSize } from '../utils/formatNumber'
 import { getPnlIntensityClass } from '../utils/formatPnl'
+import { Skeleton, SkeletonText } from './Skeleton'
 
 type LadderTargetField = 'entry' | 'tp' | 'sl'
 
@@ -80,20 +81,27 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
   const pf = usePortfolio(false)
 
   const [fundingInfo, setFundingInfo] = useState<{ fundingRate: number; nextFundingTime: number } | null>(null)
+  const [fundingLoading, setFundingLoading] = useState(false)
   useEffect(() => {
     let cancelled = false
     const sym = String(symbol ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
-    if (!sym) return
-    void fetchCurrentFundingRate(sym).then((r) => {
-      if (cancelled) return
-      if (!r) return
-      setFundingInfo({ fundingRate: r.fundingRate, nextFundingTime: r.nextFundingTime })
-    })
+    if (!sym) {
+      setFundingLoading(false)
+      return
+    }
+    setFundingLoading(true)
+    void fetchCurrentFundingRate(sym)
+      .then((r) => {
+        if (cancelled) return
+        if (r) setFundingInfo({ fundingRate: r.fundingRate, nextFundingTime: r.nextFundingTime })
+      })
+      .finally(() => {
+        if (!cancelled) setFundingLoading(false)
+      })
     const id = window.setInterval(() => {
       void fetchCurrentFundingRate(sym).then((r) => {
         if (cancelled) return
-        if (!r) return
-        setFundingInfo({ fundingRate: r.fundingRate, nextFundingTime: r.nextFundingTime })
+        if (r) setFundingInfo({ fundingRate: r.fundingRate, nextFundingTime: r.nextFundingTime })
       })
     }, 180_000)
     return () => {
@@ -267,8 +275,20 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
       </div>
 
       {/* Body (scrollable) */}
-      <div className="min-h-0 flex-1 overflow-y-auto app-pad-lg pt-0">
-        <div className="app-vstack-md pb-3">
+      <div className="relative min-h-0 flex-1 overflow-y-auto app-pad-lg pt-0">
+        {!sim.stateHydrated ? (
+          <div
+            className="absolute inset-0 z-10 flex flex-col gap-3 bg-neutral-950/88 p-4 backdrop-blur-[1px]"
+            aria-busy="true"
+            aria-label="Đang tải simulator"
+          >
+            <SkeletonText width="70%" />
+            <Skeleton width="100%" height={88} rounded="lg" />
+            <Skeleton width="100%" height={100} rounded="lg" />
+            <Skeleton width="100%" height={160} rounded="lg" />
+          </div>
+        ) : null}
+        <div className={`app-vstack-md pb-3 ${!sim.stateHydrated ? 'pointer-events-none opacity-25' : ''}`}>
 
         {currentPrice > 0 && ladderLevels.length > 0 ? (
           <div className="app-vstack-md">
@@ -518,6 +538,10 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
               <p className={`text-center text-[11px] font-mono tabular-nums ${fundingImpact.tone}`}>
                 Funding {fundingImpact.ratePct} · Est. daily {fundingImpact.est}
               </p>
+            ) : fundingLoading ? (
+              <div className="flex justify-center py-0.5">
+                <Skeleton width={220} height={14} rounded="sm" />
+              </div>
             ) : (
               <p className="text-center text-[11px] text-neutral-500">Funding …</p>
             )}

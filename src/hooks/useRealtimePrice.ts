@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect -- WebSocket: reset state khi đổi stream / teardown */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const SPOT_COMBINED_WS = 'wss://stream.binance.com:9443/stream'
 const FUTURES_COMBINED_WS = 'wss://fstream.binance.com/stream'
@@ -68,8 +68,14 @@ export type UseRealtimePriceResult = {
   /** Khóa: `${symbol}|spot` hoặc `${symbol}|futures` (symbol đã lowercase) */
   prices: Readonly<Record<string, PriceMapEntry>>
   loading: boolean
+  /** True while any subscribed market socket is in `connecting` */
+  isConnecting: boolean
+  /** True while any subscribed market socket is reconnecting (or closed with backoff) */
+  isReconnecting: boolean
   /** Gộp spot + futures: live / đang nối / tái nối / lỗi */
   connectionStatus: RealtimeConnectionStatus
+  /** Đóng socket và mở lại (Spot + Futures hub) */
+  retryConnection: () => void
   spot: MarketSocketSlice
   futures: MarketSocketSlice
 }
@@ -401,6 +407,11 @@ export function useRealtimePrice(
   const [futuresStatus, setFuturesStatus] = useState<MarketWsStatus>('idle')
   const [spotErr, setSpotErr] = useState<string | null>(null)
   const [futErr, setFutErr] = useState<string | null>(null)
+  const [reconnectNonce, setReconnectNonce] = useState(0)
+
+  const retryConnection = useCallback(() => {
+    setReconnectNonce((n) => n + 1)
+  }, [])
 
   const pendingSpotRef = useRef<Record<string, TickerSnapshot>>({})
   const pendingFutRef = useRef<Record<string, FuturesMarkSnapshot>>({})
@@ -618,7 +629,7 @@ export function useRealtimePrice(
       setSpotStatus('idle')
       setFuturesStatus('idle')
     }
-  }, [spotKey, futuresKey, reconnectBaseMs, reconnectMaxMs]) // eslint-disable-line react-hooks/exhaustive-deps -- key mã hoá symbol
+  }, [spotKey, futuresKey, reconnectNonce, reconnectBaseMs, reconnectMaxMs]) // eslint-disable-line react-hooks/exhaustive-deps -- key mã hoá symbol
 
   const spotAwaiting =
     spotSymbols.length > 0 &&
@@ -652,10 +663,15 @@ export function useRealtimePrice(
     lastError: futErr,
   }
 
+  const connectionStatus = deriveRealtimeConnectionStatus(spotSlice, futuresSlice)
+
   return {
     prices,
     loading,
-    connectionStatus: deriveRealtimeConnectionStatus(spotSlice, futuresSlice),
+    isConnecting: connectionStatus === 'connecting',
+    isReconnecting: connectionStatus === 'reconnecting',
+    connectionStatus,
+    retryConnection,
     spot: spotSlice,
     futures: futuresSlice,
   }

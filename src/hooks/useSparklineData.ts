@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { fetchWithRetry } from '../utils/fetchWithRetry'
 
 export type SparklineMarket = 'spot' | 'futures'
 
@@ -33,7 +34,7 @@ async function fetchSparkline(symbolUpper: string, market: SparklineMarket): Pro
       : 'https://api.binance.com/api/v3/klines'
 
   const url = `${base}?symbol=${encodeURIComponent(sym)}&interval=${encodeURIComponent(INTERVAL)}&limit=${LIMIT}`
-  const res = await fetch(url)
+  const res = await fetchWithRetry(url, undefined, { maxRetries: 3, baseDelayMs: 800 })
   if (!res.ok) return null
   const j = (await res.json()) as unknown
   if (!Array.isArray(j)) return null
@@ -43,14 +44,34 @@ async function fetchSparkline(symbolUpper: string, market: SparklineMarket): Pro
   return closes.length >= 2 ? closes : null
 }
 
+type CacheEntry = { data: number[] | null; fetchedAt: number; failed?: boolean }
+
+export type UseSparklineDataResult = {
+  sparklines: SparklineMap
+  /** True while any requested key has no cache entry yet or an in-flight fetch */
+  isLoading: boolean
+  /** Keys where the last fetch failed after retries */
+  errorsByKey: Record<string, boolean>
+  /** Clear failed entries and refetch */
+  retry: () => void
+}
+
 /**
  * Fetch + cache (in-memory) 24h sparkline close prices per (market,symbol).
- * Never blocks UI; returns null while loading or on errors.
+ * Missing keys are omitted from the map until the first fetch settles (then `null` if error/short data).
  */
-export function useSparklineData(requests: SparklineRequest[]): SparklineMap {
+export function useSparklineData(requests: SparklineRequest[]): UseSparklineDataResult {
   const [bump, setBump] = useState(0)
-  const cacheRef = useRef<Record<string, { data: number[] | null; fetchedAt: number }>>({})
+  const [retryGen, setRetryGen] = useState(0)
+  const cacheRef = useRef<Record<string, CacheEntry>>({})
   const inflightRef = useRef<Record<string, Promise<void> | null>>({})
+
+  const retry = useCallback(() => {
+    for (const k of Object.keys(cacheRef.current)) {
+      if (cacheRef.current[k]?.failed) delete cacheRef.current[k]
+    }
+    setRetryGen((g) => g + 1)
+  }, [])
 
   const keys = useMemo(() => {
     const uniq = new Set<string>()
@@ -83,9 +104,9 @@ export function useSparklineData(requests: SparklineRequest[]): SparklineMap {
       inflightRef.current[k] = (async () => {
         try {
           const data = await fetchSparkline(r.symbolUpper, r.market)
-          cacheRef.current[k] = { data, fetchedAt: Date.now() }
+          cacheRef.current[k] = { data, fetchedAt: Date.now(), failed: false }
         } catch {
-          cacheRef.current[k] = { data: null, fetchedAt: Date.now() }
+          cacheRef.current[k] = { data: null, fetchedAt: Date.now(), failed: true }
         } finally {
           inflightRef.current[k] = null
           if (!cancelled) setBump((x) => x + 1)
@@ -96,14 +117,23 @@ export function useSparklineData(requests: SparklineRequest[]): SparklineMap {
     return () => {
       cancelled = true
     }
-  }, [keys])
+  }, [keys, retryGen])
 
   void bump
   const out: SparklineMap = {}
+  const errorsByKey: Record<string, boolean> = {}
+  let anyMissing = false
   for (const r of keys) {
     const k = keyOf(r)
-    out[k] = cacheRef.current[k]?.data
+    const cached = cacheRef.current[k]
+    if (cached) {
+      out[k] = cached.data
+      if (cached.failed) errorsByKey[k] = true
+    } else anyMissing = true
   }
-  return out
+
+  const isLoading = keys.length > 0 && anyMissing
+
+  return { sparklines: out, isLoading, errorsByKey, retry }
 }
 

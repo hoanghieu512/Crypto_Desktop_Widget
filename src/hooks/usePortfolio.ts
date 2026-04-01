@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { showErrorToast } from '../utils/appToast'
+import { ViErrors } from '../utils/friendlyErrors'
 import { arrayMove } from '@dnd-kit/sortable'
 import { priceMapKey, useRealtimePrice, type WatchPriceEntry } from './useRealtimePrice'
 import type { FuturesPosition, FuturesPositionSide, PortfolioState } from '../types/portfolio'
@@ -105,7 +107,10 @@ export type UsePortfolioResult = {
   syncedPositions: FuturesPosition[]
   computed: PositionComputed[]
   totals: PortfolioTotals
+  /** Futures mark WebSocket: waiting for first tick */
   loading: boolean
+  /** First paint after reading manual positions from localStorage */
+  storageHydrated: boolean
   addPosition: (p: {
     symbol: string
     side: FuturesPositionSide
@@ -136,18 +141,23 @@ function newId(): string {
 }
 
 export function usePortfolio(enabled: boolean): UsePortfolioResult {
-  const [manual, setManual] = useState<FuturesPosition[]>(() => {
+  const [manual, setManual] = useState<FuturesPosition[]>([])
+  const [storageHydrated, setStorageHydrated] = useState(false)
+  const [synced, setSynced] = useState<FuturesPosition[]>([])
+
+  useEffect(() => {
     try {
-      // Persist only manual positions.
-      return safeParseState(localStorage.getItem(STORAGE_KEY)).positions.map((p) => ({
+      const parsed = safeParseState(localStorage.getItem(STORAGE_KEY)).positions.map((p) => ({
         ...p,
         source: 'manual' as const,
       }))
+      setManual(parsed)
     } catch {
-      return []
+      setManual([])
+    } finally {
+      setStorageHydrated(true)
     }
-  })
-  const [synced, setSynced] = useState<FuturesPosition[]>([])
+  }, [])
 
   const manualPositions = manual
   const syncedPositions = synced
@@ -181,7 +191,7 @@ export function usePortfolio(enabled: boolean): UsePortfolioResult {
       )
       window.dispatchEvent(new CustomEvent('portfolio:change'))
     } catch {
-      /* ignore */
+      showErrorToast(ViErrors.storageTitle, ViErrors.storageMessage)
     }
   }, [manualPositions])
 
@@ -371,6 +381,7 @@ export function usePortfolio(enabled: boolean): UsePortfolioResult {
     computed,
     totals,
     loading: rt.loading,
+    storageHydrated,
     addPosition,
     setSyncedPositions,
     updatePositionNote,

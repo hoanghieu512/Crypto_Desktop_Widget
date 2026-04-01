@@ -3,6 +3,9 @@ import { useFormatPrice } from '../hooks/useFormatPrice'
 import type { SpreadInsight } from '../utils/goldPrice'
 import { StaleBanner } from './StaleBanner'
 import { ValuationWidget } from './ValuationWidget'
+import { MetalValuationSkeleton } from './CardSkeleton'
+import { ErrorState } from './ErrorState'
+import { ViErrors } from '../utils/friendlyErrors'
 
 const PAGE_TOOLTIP =
   'Thế giới: XAU/USD mua/bán × USD/VND × (37.5g ÷ 31.1035g). So sánh giá bán VN và giá bán thế giới quy đổi / lượng.'
@@ -24,6 +27,7 @@ export function GoldDashboard({ active }: Props) {
     spread,
     insight,
     loading,
+    isRefreshing,
     error,
     fxError,
     goldFetchWarning,
@@ -32,6 +36,7 @@ export function GoldDashboard({ active }: Props) {
     isStale,
     staleBanner,
     refresh,
+    retry,
   } = useGoldPrice(active)
 
   const { format: fmtLevel, formatSigned: fmtSignedLevel, unitHint } = useFormatPrice('gold')
@@ -109,48 +114,77 @@ export function GoldDashboard({ active }: Props) {
             : undefined
         }
       />
-      <div className="rounded-xl border border-white/[0.07] bg-slate-900/70 p-4 ring-1 ring-black/20">
-      <ValuationWidget
-        asset="gold"
-        title="Vàng"
-        sourceLine={sourceLine}
-        unitLine={unitHint ?? null}
-        updatedAt={updatedAt}
-        vn={
-          ready
-            ? {
-                buy: vnBuyVndPerLuong!,
-                sell: vnSellVndPerLuong!,
-                caption: 'Việt Nam',
-              }
-            : null
-        }
-        world={
-          worldOk
-            ? {
-                buy: worldBuyVndPerLuong,
-                sell: worldSellVndPerLuong!,
-                caption: 'Thế giới (XAU)',
-              }
-            : null
-        }
-        spreadVnd={ready && sp ? sp.spreadVnd : null}
-        spreadPercent={ready && sp ? sp.spreadPercent : null}
-        insight={insightVal}
-        format={fmtLevel}
-        formatSigned={fmtSignedLevel}
-        loading={Boolean(loading && !ready && !worldOk)}
-        alert={hasAlert ? alert : null}
-        footer={
-          ready && vnLabel ? (
-            <span className="text-slate-500">
-              {vnLabel}
-              {vnSource === 'mock' ? <span className="text-amber-500/80"> · mock</span> : null}
-            </span>
-          ) : null
-        }
-        onRefresh={() => void refresh()}
-      />
+      <div className="relative rounded-xl border border-white/[0.07] bg-slate-900/70 p-4 ring-1 ring-black/20">
+        {error && worldOk ? (
+          <div className="mb-3">
+            <ErrorState
+              compact
+              title={ViErrors.apiTitle}
+              message="Đang hiển thị bản đã tải trước đó (có thể đã cũ). Nhấn Thử lại để tải mới."
+              onRetry={() => void retry()}
+            />
+          </div>
+        ) : null}
+        {loading && !worldOk ? (
+          <MetalValuationSkeleton />
+        ) : error && !worldOk && !loading ? (
+          <ErrorState
+            title={ViErrors.networkTitle}
+            message={ViErrors.networkMessage}
+            onRetry={() => void retry()}
+          />
+        ) : (
+          <ValuationWidget
+            asset="gold"
+            title="Vàng"
+            sourceLine={sourceLine}
+            unitLine={unitHint ?? null}
+            updatedAt={updatedAt}
+            vn={
+              ready
+                ? {
+                    buy: vnBuyVndPerLuong!,
+                    sell: vnSellVndPerLuong!,
+                    caption: 'Việt Nam',
+                  }
+                : null
+            }
+            world={
+              worldOk
+                ? {
+                    buy: worldBuyVndPerLuong,
+                    sell: worldSellVndPerLuong!,
+                    caption: 'Thế giới (XAU)',
+                  }
+                : null
+            }
+            spreadVnd={ready && sp ? sp.spreadVnd : null}
+            spreadPercent={ready && sp ? sp.spreadPercent : null}
+            insight={insightVal}
+            format={fmtLevel}
+            formatSigned={fmtSignedLevel}
+            loading={Boolean(loading && !ready && !worldOk)}
+            alert={hasAlert ? alert : null}
+            footer={
+              ready && vnLabel ? (
+                <span className="text-slate-500">
+                  {vnLabel}
+                  {vnSource === 'mock' ? <span className="text-amber-500/80"> · mock</span> : null}
+                </span>
+              ) : null
+            }
+            onRefresh={() => void refresh()}
+          />
+        )}
+        {isRefreshing && !(loading && !worldOk) ? (
+          <div
+            className="pointer-events-none absolute inset-0 rounded-xl bg-slate-950/40 backdrop-blur-[0.5px]"
+            aria-busy="true"
+            aria-label="Đang làm mới"
+          >
+            <div className="absolute left-1/2 top-6 h-2 w-36 -translate-x-1/2 rounded-full bg-bx-elevated skeleton-shimmer" />
+          </div>
+        ) : null}
       </div>
     </div>
   )

@@ -1,10 +1,13 @@
 import { memo, useMemo, useState } from 'react'
 import type { PriceAlert } from '../types/alerts'
 import { AddAlertForm } from './AddAlertForm'
+import { Skeleton, SkeletonText } from './Skeleton'
 
 export type AlertsPanelProps = {
   open: boolean
   onClose: () => void
+  /** False until alerts are read from storage (avoid empty flash) */
+  storageHydrated?: boolean
   alerts: PriceAlert[]
   soundEnabled: boolean
   setSoundEnabled: (v: boolean) => void
@@ -24,6 +27,7 @@ export const AlertsPanel = memo(function AlertsPanel(props: AlertsPanelProps) {
   const [adding, setAdding] = useState(false)
   const pending = useMemo(() => props.alerts.filter((a) => !a.triggered), [props.alerts])
   const triggered = useMemo(() => props.alerts.filter((a) => a.triggered), [props.alerts])
+  const storageReady = props.storageHydrated !== false
 
   if (!props.open) return null
 
@@ -45,7 +49,8 @@ export const AlertsPanel = memo(function AlertsPanel(props: AlertsPanelProps) {
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              className="app-no-drag rounded-lg border border-bx-border-medium bg-bx-input px-3 py-2 text-label font-semibold text-bx-secondary hover:text-bx-primary"
+              disabled={!storageReady}
+              className="app-no-drag rounded-lg border border-bx-border-medium bg-bx-input px-3 py-2 text-label font-semibold text-bx-secondary hover:text-bx-primary disabled:cursor-not-allowed disabled:opacity-45"
               onClick={() => setAdding(true)}
             >
               Add
@@ -75,7 +80,20 @@ export const AlertsPanel = memo(function AlertsPanel(props: AlertsPanelProps) {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-          {adding ? (
+          {!storageReady ? (
+            <div className="app-vstack-md" aria-busy="true" aria-label="Đang tải cảnh báo">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="rounded-xl border border-bx-border-subtle bg-bx-surface/60 px-3 py-3">
+                  <div className="flex justify-between gap-2">
+                    <SkeletonText width="40%" />
+                    <Skeleton width={56} height={24} rounded="md" />
+                  </div>
+                  <SkeletonText width="75%" className="mt-2" />
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {storageReady && adding ? (
             <div className="rounded-2xl border border-bx-border-subtle bg-bx-surface/60 p-3">
               <AddAlertForm
                 symbol={props.prefill?.symbol}
@@ -89,6 +107,7 @@ export const AlertsPanel = memo(function AlertsPanel(props: AlertsPanelProps) {
             </div>
           ) : null}
 
+          {storageReady ? (
           <div className="mt-3">
             <p className="text-meta font-semibold uppercase tracking-wide text-bx-muted">Pending</p>
             {pending.length === 0 ? (
@@ -126,7 +145,9 @@ export const AlertsPanel = memo(function AlertsPanel(props: AlertsPanelProps) {
               </ul>
             )}
           </div>
+          ) : null}
 
+          {storageReady ? (
           <div className="mt-4">
             <p className="text-meta font-semibold uppercase tracking-wide text-bx-muted">Triggered</p>
             {triggered.length === 0 ? (
@@ -169,6 +190,7 @@ export const AlertsPanel = memo(function AlertsPanel(props: AlertsPanelProps) {
               </ul>
             )}
           </div>
+          ) : null}
         </div>
       </aside>
     </div>

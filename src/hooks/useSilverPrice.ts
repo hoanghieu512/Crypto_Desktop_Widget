@@ -77,6 +77,7 @@ export function useSilverPrice(enabled: boolean) {
   const [vnSilverLastUpdated, setVnSilverLastUpdated] = useState<string | null>(null)
   const [vnSilverAttempted, setVnSilverAttempted] = useState(false)
   const [loading, setLoading] = useState(enabled)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [worldError, setWorldError] = useState<string | null>(null)
   const [listingsError, setListingsError] = useState<string | null>(null)
   const [fxError, setFxError] = useState<string | null>(null)
@@ -102,6 +103,7 @@ export function useSilverPrice(enabled: boolean) {
   const fetchAll = useCallback(async () => {
     if (!enabled) return
     if (firstLoadRef.current) setLoading(true)
+    else setIsRefreshing(true)
     setWorldError(null)
     setListingsError(null)
     setFxError(null)
@@ -174,6 +176,7 @@ export function useSilverPrice(enabled: boolean) {
       firstLoadRef.current = false
       if (mounted.current) {
         setLoading(false)
+        setIsRefreshing(false)
         if (enabled) setDataNonce((n) => n + 1)
       }
     }
@@ -195,6 +198,7 @@ export function useSilverPrice(enabled: boolean) {
     if (!enabled) {
       firstLoadRef.current = true
       setLoading(false)
+      setIsRefreshing(false)
       setVnSilverListings([])
       setVnSilverLastUpdated(null)
       setVnSilverAttempted(false)
@@ -286,6 +290,7 @@ export function useSilverPrice(enabled: boolean) {
   return {
     ...snapshot,
     loading,
+    isRefreshing,
     worldError,
     listingsError,
     fxError,
@@ -302,6 +307,7 @@ export function useSilverPrice(enabled: boolean) {
     isLoading: loading,
     error: listingsError,
     refresh,
+    retry: refresh,
   }
 }
 

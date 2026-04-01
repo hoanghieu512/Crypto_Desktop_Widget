@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FormatProvider } from './providers/FormatProvider'
 import { FormatControls } from './components/FormatControls'
 import { PreciousMetalsPanel } from './components/PreciousMetalsPanel'
@@ -10,7 +10,10 @@ import type { RealtimeConnectionStatus } from './hooks/useRealtimePrice'
 import { usePriceAlerts } from './hooks/usePriceAlerts'
 import { AlertsPanel } from './components/AlertsPanel'
 import { AlertToast } from './components/AlertToast'
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { ShortcutsHelpModal } from './components/ShortcutsHelpModal'
 import { BackupImportFlash } from './components/BackupImportFlash'
+import { AppErrorToasts } from './components/AppErrorToasts'
 
 type Tab = 'crypto' | 'gold' | 'silver'
 
@@ -26,6 +29,8 @@ export default function App() {
   const [alertsOpen, setAlertsOpen] = useState(false)
   const [alertPrefill, setAlertPrefill] = useState<{ symbol?: string; currentPrice?: number | null }>({})
   const [alertPrices, setAlertPrices] = useState<Record<string, number | null>>({})
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [cryptoRefreshNonce, setCryptoRefreshNonce] = useState(0)
   const electron = isElectron()
 
   useEffect(() => {
@@ -35,6 +40,64 @@ export default function App() {
   }, [tab])
 
   const alerts = usePriceAlerts({ pricesBySymbol: alertPrices })
+
+  const switchTabByIndex = useCallback((idx: number) => {
+    const next: Tab = idx === 0 ? 'crypto' : idx === 1 ? 'gold' : 'silver'
+    setTab(next)
+  }, [])
+
+  const closePanels = useCallback(() => {
+    setShortcutsOpen(false)
+    setAlertsOpen(false)
+    setPortfolioOpen(false)
+    // Simulator already listens to Escape internally.
+  }, [])
+
+  const focusSearch = useCallback(() => {
+    if (tab !== 'crypto') {
+      setTab('crypto')
+      // let next frame focus
+      requestAnimationFrame(() => {
+        const el = document.getElementById('wl-symbol-input') as HTMLInputElement | null
+        el?.focus()
+        el?.select()
+      })
+      return
+    }
+    const el = document.getElementById('wl-symbol-input') as HTMLInputElement | null
+    el?.focus()
+    el?.select()
+  }, [tab])
+
+  const refreshCurrent = useCallback(() => {
+    if (tab === 'crypto') {
+      setCryptoRefreshNonce((n) => n + 1)
+      return
+    }
+    window.dispatchEvent(new CustomEvent('app:refresh', { detail: { tab } }))
+  }, [tab])
+
+  const handlers = useMemo(
+    () => ({
+      onSwitchTab: (i: number) => switchTabByIndex(i),
+      onTogglePortfolio: () => {
+        if (tab !== 'crypto') setTab('crypto')
+        setPortfolioOpen((v) => !v)
+      },
+      onClosePanel: () => closePanels(),
+      onOpenAlerts: () => {
+        if (tab !== 'crypto') setTab('crypto')
+        setAlertPrefill({})
+        setAlertsOpen(true)
+      },
+      onRefresh: () => refreshCurrent(),
+      onFocusSearch: () => focusSearch(),
+      onShowHelp: () => setShortcutsOpen(true),
+    }),
+    [closePanels, focusSearch, refreshCurrent, switchTabByIndex, tab],
+  )
+
+  useKeyboardShortcuts(handlers, true)
 
   useEffect(() => {
     if (!electron || !window.electronAPI?.isAlwaysOnTop) return
@@ -159,6 +222,7 @@ export default function App() {
                 setAlertPrefill({ symbol, currentPrice })
                 setAlertsOpen(true)
               }}
+              refreshNonce={cryptoRefreshNonce}
             />
           ) : tab === 'gold' ? (
             <PreciousMetalsPanel active={tab === 'gold'} />
@@ -194,6 +258,7 @@ export default function App() {
         <AlertsPanel
           open={alertsOpen}
           onClose={() => setAlertsOpen(false)}
+          storageHydrated={alerts.storageHydrated}
           alerts={alerts.alerts}
           soundEnabled={alerts.settings.soundEnabled}
           setSoundEnabled={alerts.setSoundEnabled}
@@ -205,6 +270,9 @@ export default function App() {
         />
 
         <AlertToast items={alerts.toasts} onDismiss={alerts.dismissToast} />
+        <AppErrorToasts />
+
+        <ShortcutsHelpModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
         <BackupImportFlash />
 
         {electron ? (

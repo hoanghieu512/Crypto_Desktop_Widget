@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ViErrors } from '../utils/friendlyErrors'
 import { fetchCurrentFundingRate, fetchFundingHistory } from '../api/fundingRate'
 import type { FundingPayment, FundingRateInfo, FundingResult } from '../types/funding'
 import type { FuturesPosition } from '../types/portfolio'
@@ -8,6 +9,11 @@ export type FundingDataResult = {
   fundingByPositionId: Record<string, FundingResult | undefined>
   currentBySymbol: Record<string, FundingRateInfo | undefined>
   updatedAt: number | null
+  /** True while a funding / history fetch round is in flight */
+  isLoading: boolean
+  /** Last fetch round had failures — PnL may omit funding */
+  error: string | null
+  retry: () => void
 }
 
 const CURRENT_TTL_MS = 3 * 60_000
@@ -51,6 +57,9 @@ export function useFundingData(params: {
   markPriceBySymbolUpper?: Record<string, number | null | undefined>
 }): FundingDataResult {
   const [tick, setTick] = useState(0)
+  const [isLoading, setIsLoading] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [retryNonce, setRetryNonce] = useState(0)
   const cacheRef = useRef<{
     current: Record<string, { v: FundingRateInfo | null; at: number }>
     history: Record<string, { v: FundingPayment[]; at: number; range: { start: number; end: number } }>
@@ -68,6 +77,11 @@ export function useFundingData(params: {
     return out
   }, [params.positions])
 
+  const retry = useCallback(() => {
+    setFetchError(null)
+    setRetryNonce((n) => n + 1)
+  }, [])
+
   const oldestBySymbol = useMemo(() => {
     const out: Record<string, number> = {}
     for (const p of params.positions) {
@@ -80,7 +94,11 @@ export function useFundingData(params: {
   }, [params.positions])
 
   useEffect(() => {
-    if (symbols.length === 0) return
+    if (symbols.length === 0) {
+      setIsLoading(false)
+      setFetchError(null)
+      return
+    }
     let cancelled = false
     const run = async () => {
       const now = Date.now()
@@ -92,6 +110,7 @@ export function useFundingData(params: {
           tasks.push(
             (async () => {
               const v = await fetchCurrentFundingRate(sym)
+              if (v == null) throw new Error(`current:${sym}`)
               cacheRef.current.current[sym] = { v, at: Date.now() }
             })(),
           )
@@ -113,10 +132,17 @@ export function useFundingData(params: {
       }
 
       if (tasks.length === 0) return
+      if (!cancelled) setIsLoading(true)
       try {
-        await Promise.all(tasks)
+        const settled = await Promise.allSettled(tasks)
+        const failed = settled.some((s) => s.status === 'rejected')
+        if (!cancelled && failed) setFetchError(ViErrors.fundingPartial)
+        else if (!cancelled) setFetchError(null)
       } finally {
-        if (!cancelled) setTick((x) => x + 1)
+        if (!cancelled) {
+          setIsLoading(false)
+          setTick((x) => x + 1)
+        }
       }
     }
 
@@ -126,7 +152,7 @@ export function useFundingData(params: {
       cancelled = true
       window.clearInterval(id)
     }
-  }, [symbols, oldestBySymbol])
+  }, [symbols, oldestBySymbol, retryNonce])
 
   void tick
   const currentBySymbol = useMemo(() => {
@@ -165,6 +191,6 @@ export function useFundingData(params: {
     return max > 0 ? max : null
   }, [symbols, tick])
 
-  return { fundingByPositionId, currentBySymbol, updatedAt }
+  return { fundingByPositionId, currentBySymbol, updatedAt, isLoading, error: fetchError, retry }
 }
 

@@ -44,11 +44,19 @@ import { normalizeCryptoPairInput } from '../utils/cryptoPair'
 import { FuturesSimulatorPanel } from './FuturesSimulatorPanel'
 import { SessionBar } from './SessionBar'
 import { Sparkline } from './Sparkline'
+import { Skeleton } from './Skeleton'
+import { WatchlistSkeleton } from './WatchlistSkeleton'
+import { ConnectionBanner } from './ConnectionBanner'
+import { ErrorIndicator } from './ErrorIndicator'
+import { ViErrors } from '../utils/friendlyErrors'
+import { showErrorToast } from '../utils/appToast'
 
 export type WatchlistDashboardProps = {
   onConnectionStatusChange?: (status: RealtimeConnectionStatus) => void
   onPricesBySymbolChange?: (prices: Record<string, number | null>) => void
   onQuickAddAlert?: (symbolUpper: string, currentPrice: number | null) => void
+  /** Force reconnect realtime WS when changed */
+  refreshNonce?: number
 }
 
 const STORAGE_KEY = 'crypto-watchlist-v2'
@@ -405,7 +413,10 @@ type RowProps = {
   mode: MarketMode
   entry: PriceMapEntry | undefined
   prices: Readonly<Record<string, PriceMapEntry>>
+  /** `undefined` = sparkline still loading */
   sparkline?: number[] | null
+  sparklineFailed?: boolean
+  onRetrySparkline?: () => void
   /** ms từ Date.now() — dùng chung một tick để tính stale, tránh mỗi dòng một interval */
   stalenessClock: number
   onRemove: (id: string) => void
@@ -460,6 +471,8 @@ const WatchlistRow = memo(function WatchlistRow({
   entry,
   prices,
   sparkline,
+  sparklineFailed,
+  onRetrySparkline,
   stalenessClock,
   onRemove,
   onToggleRowMarket,
@@ -704,7 +717,11 @@ const WatchlistRow = memo(function WatchlistRow({
             </span>
             <div className="flex shrink-0 items-center gap-2">
               <div className="hidden min-[420px]:flex h-[20px] w-[56px] items-center justify-center">
-                {sparkline ? (
+                {sparklineFailed ? (
+                  <ErrorIndicator message={ViErrors.sparklineFailed} onRetry={onRetrySparkline} />
+                ) : sparkline === undefined ? (
+                  <Skeleton width={56} height={20} rounded="sm" />
+                ) : sparkline ? (
                   <Sparkline data={sparkline} width={56} height={20} className={priceStale ? 'opacity-50' : 'opacity-90'} />
                 ) : (
                   <div className="h-[18px] w-[56px] rounded bg-bx-elevated/40" aria-hidden />
@@ -765,7 +782,11 @@ const WatchlistRow = memo(function WatchlistRow({
           </span>
           <div className="flex shrink-0 items-center gap-2">
             <div className="hidden min-[420px]:flex h-[20px] w-[56px] items-center justify-center">
-              {sparkline ? (
+              {sparklineFailed ? (
+                <ErrorIndicator message={ViErrors.sparklineFailed} onRetry={onRetrySparkline} />
+              ) : sparkline === undefined ? (
+                <Skeleton width={56} height={20} rounded="sm" />
+              ) : sparkline ? (
                 <Sparkline data={sparkline} width={56} height={20} className={priceStale ? 'opacity-50' : 'opacity-90'} />
               ) : (
                 <div className="h-[18px] w-[56px] rounded bg-bx-elevated/40" aria-hidden />
@@ -806,11 +827,20 @@ export function WatchlistDashboard({
   onConnectionStatusChange,
   onPricesBySymbolChange,
   onQuickAddAlert,
+  refreshNonce = 0,
 }: WatchlistDashboardProps = {}) {
-  const initial = useMemo(() => loadState(), [])
-  const [marketMode, setMarketMode] = useState<MarketMode>(initial.marketMode)
-  const [globalMarket, setGlobalMarket] = useState<Market>(initial.globalMarket)
-  const [items, setItems] = useState<WatchItem[]>(initial.items)
+  const [watchlistReady, setWatchlistReady] = useState(false)
+  const [marketMode, setMarketMode] = useState<MarketMode>('global')
+  const [globalMarket, setGlobalMarket] = useState<Market>('spot')
+  const [items, setItems] = useState<WatchItem[]>([])
+
+  useEffect(() => {
+    const s = loadState()
+    setMarketMode(s.marketMode)
+    setGlobalMarket(s.globalMarket)
+    setItems(s.items)
+    setWatchlistReady(true)
+  }, [])
   const [draft, setDraft] = useState('sol')
   const [draftMarket, setDraftMarket] = useState<Market>('spot')
   const [stalenessClock, setStalenessClock] = useState(() => Date.now())
@@ -839,6 +869,7 @@ export function WatchlistDashboard({
   }, [])
 
   useEffect(() => {
+    if (!watchlistReady) return
     const payload: StoredState = {
       v: 2,
       marketMode,
@@ -849,21 +880,25 @@ export function WatchlistDashboard({
         ...(marketMode === 'perCoin' ? { market: i.market ?? 'spot' } : {}),
       })),
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
-  }, [items, marketMode, globalMarket])
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+    } catch {
+      showErrorToast(ViErrors.storageTitle, ViErrors.storageMessage)
+    }
+  }, [items, marketMode, globalMarket, watchlistReady])
 
   /** Thứ tự mảng chỉ ảnh hưởng UI; hook gom symbol theo tập đã sort — không reconnect WS khi reorder */
   const watchEntries: WatchPriceEntry[] = useMemo(
     () =>
       items.map((i) => ({
-        key: i.id,
+        key: `${i.id}|${refreshNonce}`,
         symbol: normalizeCryptoPairInput(i.symbol) || i.symbol.trim().toLowerCase(),
         market: effectiveMarket(i, marketMode, globalMarket),
       })),
-    [items, marketMode, globalMarket],
+    [items, marketMode, globalMarket, refreshNonce],
   )
 
-  const { prices, loading, connectionStatus, spot, futures } =
+  const { prices, loading, connectionStatus, retryConnection, spot, futures } =
     useRealtimePrice(watchEntries)
 
   const sparkRequests = useMemo(() => {
@@ -875,7 +910,12 @@ export function WatchlistDashboard({
     })
   }, [items, marketMode, globalMarket])
 
-  const sparklines = useSparklineData(sparkRequests)
+  const {
+    sparklines,
+    isLoading: sparklinesLoading,
+    errorsByKey: sparkErrorsByKey,
+    retry: retrySparklines,
+  } = useSparklineData(sparkRequests)
 
   useEffect(() => {
     onConnectionStatusChange?.(connectionStatus)
@@ -1309,21 +1349,15 @@ export function WatchlistDashboard({
           </form>
         </div>
 
+        {watchlistReady && items.length > 0 && (connectionStatus === 'reconnecting' || connectionStatus === 'error') ? (
+          <ConnectionBanner
+            variant={connectionStatus === 'error' ? 'error' : 'reconnecting'}
+            message={connectionStatus === 'error' ? ViErrors.wsFailed : ViErrors.wsReconnecting}
+            onRetry={retryConnection}
+          />
+        ) : null}
+
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-          {connectionStatus === 'reconnecting' && items.length > 0 ? (
-            <div
-              className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-2 pt-1"
-              role="status"
-            >
-              <div className="flex min-w-0 max-w-[min(100%,280px)] items-center gap-2 rounded-full border border-bx-border-medium bg-bx-elevated/95 px-3 py-1 text-[10px] font-medium text-bx-yellow shadow-md backdrop-blur-sm">
-                <span
-                  className="inline-block size-3 shrink-0 animate-spin rounded-full border-2 border-bx-yellow/50 border-t-transparent"
-                  aria-hidden
-                />
-                <span className="min-w-0 truncate">Đang kết nối lại…</span>
-              </div>
-            </div>
-          ) : null}
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -1331,42 +1365,56 @@ export function WatchlistDashboard({
           >
             <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
               <WatchlistColumnHeader />
-              <ul className="flex min-h-0 flex-1 flex-col">
-                {items.length === 0 ? (
-                  <li className="list-none border-b border-bx-border-subtle px-3 py-6 text-center text-[12px] text-bx-secondary">
-                    Thêm cặp để xem giá realtime.
-                  </li>
-                ) : (
-                  items.map((item) => {
-                    const m = effectiveMarket(item, marketMode, globalMarket)
-                    const sym =
-                      normalizeCryptoPairInput(item.symbol) || item.symbol.trim().toLowerCase()
-                    const pk = priceMapKey(sym, m)
-                    const entry = prices[pk]
-                    const symUpper = sym.toUpperCase().replace(/[^A-Z0-9]/g, '')
-                    const spark = sparklines[`${m === 'futures' ? 'futures' : 'spot'}:${symUpper}`] ?? null
-                    return (
-                      <WatchlistRow
-                        key={item.id}
-                        item={item}
-                        market={m}
-                        mode={marketMode}
-                        entry={entry}
-                        prices={prices}
-                        sparkline={spark}
-                        stalenessClock={stalenessClock}
-                        onRemove={remove}
-                        onToggleRowMarket={toggleRowMarket}
-                        dragDisabled={loading}
-                        onOpenFuturesSimulator={
-                          m === 'futures' ? openFuturesSimulator : undefined
-                        }
-                    onQuickAddAlert={onQuickAddAlert}
-                      />
-                    )
-                  })
-                )}
-              </ul>
+              {!watchlistReady ? (
+                <WatchlistSkeleton count={6} />
+              ) : (
+                <ul className="flex min-h-0 flex-1 flex-col">
+                  {items.length === 0 ? (
+                    <li className="list-none border-b border-bx-border-subtle px-3 py-6 text-center text-[12px] text-bx-secondary">
+                      Thêm cặp để xem giá realtime.
+                    </li>
+                  ) : (
+                    items.map((item) => {
+                      const m = effectiveMarket(item, marketMode, globalMarket)
+                      const sym =
+                        normalizeCryptoPairInput(item.symbol) || item.symbol.trim().toLowerCase()
+                      const pk = priceMapKey(sym, m)
+                      const entry = prices[pk]
+                      const symUpper = sym.toUpperCase().replace(/[^A-Z0-9]/g, '')
+                      const sk = `${m === 'futures' ? 'futures' : 'spot'}:${symUpper}`
+                      const sparkRaw = sparklines[sk]
+                      const spark =
+                        sparkRaw === undefined
+                          ? sparklinesLoading
+                            ? undefined
+                            : null
+                          : sparkRaw
+                      const sparkFailed = sparkErrorsByKey[sk] === true
+                      return (
+                        <WatchlistRow
+                          key={item.id}
+                          item={item}
+                          market={m}
+                          mode={marketMode}
+                          entry={entry}
+                          prices={prices}
+                          sparkline={spark}
+                          sparklineFailed={sparkFailed}
+                          onRetrySparkline={retrySparklines}
+                          stalenessClock={stalenessClock}
+                          onRemove={remove}
+                          onToggleRowMarket={toggleRowMarket}
+                          dragDisabled={loading}
+                          onOpenFuturesSimulator={
+                            m === 'futures' ? openFuturesSimulator : undefined
+                          }
+                          onQuickAddAlert={onQuickAddAlert}
+                        />
+                      )
+                    })
+                  )}
+                </ul>
+              )}
             </SortableContext>
           </DndContext>
         </div>

@@ -2,6 +2,9 @@ import type { UseSilverPriceResult } from '../hooks/useSilverPrice'
 import { useFormatPrice } from '../hooks/useFormatPrice'
 import type { SpreadInsight } from '../utils/goldPrice'
 import { ValuationWidget } from './ValuationWidget'
+import { MetalValuationSkeleton } from './CardSkeleton'
+import { ErrorState } from './ErrorState'
+import { ViErrors } from '../utils/friendlyErrors'
 
 const PAGE_TOOLTIP =
   'Spot bạc thế giới (USD/tr.oz) quy đổi VND/lượng như vàng. Spread: giữa VN − giữa TG (quy đổi).'
@@ -24,6 +27,7 @@ export function SilverDashboard({ silver }: Props) {
     spread,
     insight,
     loading,
+    isRefreshing,
     worldError,
     listingsError,
     fxError,
@@ -33,6 +37,7 @@ export function SilverDashboard({ silver }: Props) {
     vnSilverMissing,
     listings,
     refresh,
+    retry,
   } = silver
 
   const { format: fmtLevel, formatSigned: fmtSignedLevel, unitHint } = useFormatPrice('silver')
@@ -119,46 +124,85 @@ export function SilverDashboard({ silver }: Props) {
 
   return (
     <div title={PAGE_TOOLTIP} className="flex flex-col gap-3">
-      <div className="rounded-xl border border-white/[0.07] bg-slate-900/70 p-4 ring-1 ring-black/20">
-      <ValuationWidget
-        asset="silver"
-        title="Bạc"
-        sourceLine={sourceLine}
-        unitLine={unitHint ?? null}
-        updatedAt={updatedAt}
-        vn={
-          ready
-            ? {
-                buy: vnBuyVndPerLuong!,
-                sell: vnSellVndPerLuong!,
-                caption: 'Việt Nam',
-              }
-            : null
-        }
-        world={
-          worldOk
-            ? {
-                buy: worldBuyVndPerLuong,
-                sell: worldSellVndPerLuong!,
-                mid: wm,
-                caption: 'Thế giới (XAG)',
-              }
-            : null
-        }
-        spreadVnd={ready && spread ? spread.spreadVnd : null}
-        spreadPercent={ready && spread ? spread.spreadPercent : null}
-        insight={insightVal}
-        format={fmtLevel}
-        formatSigned={fmtSignedLevel}
-        loading={Boolean(loading && !ready && !worldOk)}
-        alert={hasAlert ? alert : null}
-        footer={
-          ready && vnLabel ? (
-            <span className="text-slate-500">{vnLabel}</span>
-          ) : null
-        }
-        onRefresh={() => void refresh()}
-      />
+      <div className="relative rounded-xl border border-white/[0.07] bg-slate-900/70 p-4 ring-1 ring-black/20">
+        {blockingError && worldOk ? (
+          <div className="mb-3">
+            <ErrorState
+              compact
+              title={ViErrors.apiTitle}
+              message="Đang hiển thị bản đã tải trước đó. Nhấn Thử lại để tải mới."
+              onRetry={() => void retry()}
+            />
+          </div>
+        ) : null}
+        {listingsError && worldOk && !blockingError && !loading ? (
+          <div className="mb-3">
+            <ErrorState
+              compact
+              title={ViErrors.apiTitle}
+              message="Không tải được niêm yết VN. Giá thế giới vẫn hiển thị."
+              onRetry={() => void retry()}
+            />
+          </div>
+        ) : null}
+        {loading && !worldOk ? (
+          <MetalValuationSkeleton />
+        ) : blockingError && !worldOk && !loading ? (
+          <ErrorState
+            title={ViErrors.networkTitle}
+            message={ViErrors.networkMessage}
+            onRetry={() => void retry()}
+          />
+        ) : (
+          <ValuationWidget
+            asset="silver"
+            title="Bạc"
+            sourceLine={sourceLine}
+            unitLine={unitHint ?? null}
+            updatedAt={updatedAt}
+            vn={
+              ready
+                ? {
+                    buy: vnBuyVndPerLuong!,
+                    sell: vnSellVndPerLuong!,
+                    caption: 'Việt Nam',
+                  }
+                : null
+            }
+            world={
+              worldOk
+                ? {
+                    buy: worldBuyVndPerLuong,
+                    sell: worldSellVndPerLuong!,
+                    mid: wm,
+                    caption: 'Thế giới (XAG)',
+                  }
+                : null
+            }
+            spreadVnd={ready && spread ? spread.spreadVnd : null}
+            spreadPercent={ready && spread ? spread.spreadPercent : null}
+            insight={insightVal}
+            format={fmtLevel}
+            formatSigned={fmtSignedLevel}
+            loading={Boolean(loading && !ready && !worldOk)}
+            alert={hasAlert ? alert : null}
+            footer={
+              ready && vnLabel ? (
+                <span className="text-slate-500">{vnLabel}</span>
+              ) : null
+            }
+            onRefresh={() => void refresh()}
+          />
+        )}
+        {isRefreshing && !(loading && !worldOk) ? (
+          <div
+            className="pointer-events-none absolute inset-0 rounded-xl bg-slate-950/40 backdrop-blur-[0.5px]"
+            aria-busy="true"
+            aria-label="Đang làm mới"
+          >
+            <div className="absolute left-1/2 top-6 h-2 w-36 -translate-x-1/2 rounded-full bg-bx-elevated skeleton-shimmer" />
+          </div>
+        ) : null}
       </div>
 
       {listings.length > 1 ? (
