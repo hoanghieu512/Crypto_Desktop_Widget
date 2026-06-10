@@ -46,7 +46,8 @@ function createWindow() {
   if (useDevServer) {
     win.loadURL(devServerUrl)
   } else {
-    win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
+    // app.getAppPath() = project root in dev, app.asar root in packaged build
+    win.loadFile(path.join(app.getAppPath(), 'dist', 'index.html'))
   }
 
   return win

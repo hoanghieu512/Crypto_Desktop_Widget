@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.7.1] - 2026-06-10
+### Added
+- **macOS distribution packaging**: `electron-builder` added as devDependency; `build` config in `package.json` targets macOS x64 DMG (no code-signing, Gatekeeper bypass via right-click → Open on first launch); output to `release/`; new script `npm run dist:mac` runs Vite build then electron-builder in one step
+
+### Changed
+- `electron/main.cjs`: production renderer path now uses `app.getAppPath()` instead of `path.join(__dirname, '..')` for correct resolution inside `.asar` archives
+
+## [1.7.0] - 2026-06-09
+### Added
+- **Version display**: App version shown as a small muted `v1.x.x` label next to the minimize/close buttons in Electron; value read from `package.json` at build time via Vite `define` (`__APP_VERSION__`), never hard-coded
+
 ## [1.6.0] - 2026-04-02
 ### Added
 - **Skeleton loaders** (ADD 1): `Skeleton.tsx` base pulse-animation component; `CardSkeleton.tsx` (AssetCard loading state), `WatchlistSkeleton.tsx` (watchlist row stubs), `PortfolioSkeleton.tsx` (portfolio panel stubs) — all shown while first WebSocket tick hasn't arrived or data is loading

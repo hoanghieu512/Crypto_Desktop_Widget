@@ -44,7 +44,7 @@ Gom **nhiều nguồn giá** (WebSocket + REST) vào **một cửa sổ nhỏ**,
 |----|-----|
 | **Realtime crypto** — USDT pairs, Spot (last) / Futures (mark), per-row or global market mode, drag-and-drop sort (`@dnd-kit`). | **Crypto realtime** — cặp USDT, Spot (last) / Futures (mark), SPOT/FUT theo dòng hoặc chung, kéo thả sắp xếp. |
 | **Gold valuation widget** — clean card UI focused on **VN vs world** and **spread** (premium/discount insight + optional bar). | **Vàng (widget định giá)** — thẻ tối giản tập trung **VN vs TG** và **spread** (insight + thanh so sánh). |
-| **Silver valuation widget** — world XAG + VN listing when available; spread uses **VN mid vs world mid** (hook logic). | **Bạc (widget định giá)** — XAG TG + niêm yết VN khi có; spread theo **giữa VN vs giữa TG**. |
+| **Silver valuation widget** — world XAG + VN listings (**Phú Quý**) when available; spread uses **VN mid vs world mid** (hook logic); detail section shows per-product listing cards. | **Bạc (widget định giá)** — XAG TG + niêm yết VN (**Phú Quý**) khi có; spread giữa VN vs giữa TG; chi tiết từng sản phẩm. |
 | **Domestic listings (responsive)** — long domestic lists are hidden on small widths; shown from larger breakpoints for readability. | **Niêm yết trong nước (responsive)** — danh sách dài ẩn ở màn hình nhỏ, chỉ hiện khi đủ rộng. |
 | **Formatting** — `FormatProvider`, `formatPrice` / `useFormatPrice`. | **Định dạng số** — `FormatProvider` + `useFormatPrice`. |
 | **UTC sessions** — Asia / EU / US bar with **minimal tooltip (3 lines)** and small delay. | **Phiên UTC** — thanh Asia / EU / US có **tooltip 3 dòng** (delay nhẹ). |
@@ -61,7 +61,8 @@ Gom **nhiều nguồn giá** (WebSocket + REST) vào **một cửa sổ nhỏ**,
 | **Alert trigger toast** — dedicated floating toast stack (`AlertToast`) for fired price alerts (auto-dismiss ~9s), separate from error toasts. | **Toast cảnh báo** — toast nổi riêng cho alert kích hoạt (tự đóng ~9s). |
 | **Scroll UX** — `index.css`: WebKit/Firefox scrollbar overlay-style (dim until interaction). | **Thanh cuộn** — ẩn / hé hiện khi tương tác (Chromium/Electron; Firefox ẩn). |
 | **Metal market utility** — `getMetalMarketStatus` (OTC-style weekend gap Fri 22:00–Sun 22:00 UTC); ready for gold/silver status UI. | **Helper phiên kim loại** — `getMetalMarketStatus` (model OTC cuối tuần UTC); sẵn cho UI Vàng/Bạc. |
-| **Electron** — always-on-top, drag regions. | **Electron** — luôn trên cùng, vùng kéo cửa sổ. |
+| **Electron** — always-on-top, drag regions; **version label** shown near window controls, read from `package.json` at build time via Vite `define`. | **Electron** — luôn trên cùng, vùng kéo cửa sổ; **nhãn version** nhỏ cạnh nút điều khiển, đọc từ `package.json` lúc build. |
+| **macOS distribution (.dmg)** — `electron-builder` (`npm run dist:mac`): Vite build → asar bundle → DMG in `release/`; unsigned (Gatekeeper: right-click → Open on first launch). | **Đóng gói macOS (.dmg)** — `electron-builder` (`npm run dist:mac`): build Vite → bundle asar → DMG trong `release/`; không ký số (Gatekeeper: chuột phải → Open lần đầu). |
 | **Interaction system (subtle)** — low-contrast row hover, pointer/brightness on prices, subtle focus rings, directional price flash (up/down), small pulse on ladder-fill target inputs. | **Hệ tương tác (tinh tế)** — hover nhẹ, giá có pointer/brightness, focus ring mờ, flash giá lên/xuống, pulse nhẹ khi click ladder điền ô mục tiêu. |
 
 **EN — Not in scope yet:** server-side or mobile **push** delivery, automated trading signals, or advanced portfolio analytics (possible future work).  
@@ -130,8 +131,8 @@ flowchart LR
 - **Portfolio:** manual positions persisted in `localStorage` (`futures-portfolio-v1`); optional Binance sync uses signed REST `GET /fapi/v2/positionRisk` and **binanceErrorToVi** / toasts on failure. Mark price for PnL uses the same futures mark WebSocket as the simulator. **`usePortfolio`** hydrates async (skeleton until `storageHydrated`).  
   **Portfolio:** lưu local; sync Binance + thông báo lỗi thân thiện; PnL theo WS mark; skeleton khi đang hydrate storage.
 
-- **Gold / Silver:** `fetchGoldWithFallback`, `fetchUsdVnd`, (`fetchSilverWorldWithFallback` for silver) → `useGoldPrice` / `useSilverPrice` / `useVnMetalPrices` → dashboards. `StaleBanner` (driven by `useOnlineStatus`) warns when data is from cache or browser is offline. `PriceMovementStrip` (`usePriceMovement` + `priceMovementMath`) shows short-term sparkline + % change + volatility badge on each metal card. REST errors use `fetchResilience` (backoff) + `fetchErrors` (classify).  
-  **Vàng / Bạc:** fetch → hook → dashboard. `StaleBanner` cảnh báo khi offline/cache. `PriceMovementStrip` hiện sparkline ngắn hạn + % + badge biến động. Lỗi REST dùng retry backoff + phân loại lỗi.
+- **Gold / Silver:** `fetchGoldWithFallback`, `fetchUsdVnd`, (`fetchSilverWorldWithFallback` for silver) → `useGoldPrice` / `useSilverPrice` / `useVnMetalPrices` → dashboards. Silver fetches `fetchVnSilverPrices` (Phú Quý) in the same `Promise.all` as world spot + FX; VN listings shown in `SilverDashboard`. `StaleBanner` (driven by `useOnlineStatus`) warns when data is from cache or browser is offline. `PriceMovementStrip` (`usePriceMovement` + `priceMovementMath`) shows short-term sparkline + % change + volatility badge on each metal card. REST errors use `fetchResilience` (backoff) + `fetchErrors` (classify).  
+  **Vàng / Bạc:** fetch → hook → dashboard. Bạc: `fetchVnSilverPrices` (Phú Quý) song song với spot TG + FX trong `Promise.all`; niêm yết VN hiện trong `SilverDashboard`. `StaleBanner` cảnh báo khi offline/cache. `PriceMovementStrip` hiện sparkline ngắn hạn + % + badge biến động. Lỗi REST dùng retry backoff + phân loại lỗi.
 
 ---
 
@@ -140,7 +141,7 @@ flowchart LR
 | Path | EN (role) | VI (vai trò) |
 |------|-----------|--------------|
 | `tailwind.config.js` | Tailwind design tokens (typography/colors/radius/shadow) | Token thiết kế Tailwind (chữ/màu/radius/shadow) |
-| `electron/main.cjs` | Electron window, preload, always-on-top | Cửa sổ Electron, preload, always-on-top |
+| `electron/main.cjs` | Electron window, preload, always-on-top; production renderer loaded via `app.getAppPath()` (asar-safe) | Cửa sổ Electron, preload, always-on-top; renderer production dùng `app.getAppPath()` (an toàn với asar) |
 | `src/App.tsx` | Tabs Crypto / Gold / Silver, format shell | Tab Crypto / Vàng / Bạc, khung format |
 | `src/hooks/useRealtimePrice.ts` | Binance WS, connection state, prices | WebSocket Binance, trạng thái kết nối, giá |
 | `src/hooks/useGoldPrice.ts` | Gold polling + FX, sell-vs-sell spread | Polling vàng + FX, spread bán VN vs TG |
@@ -232,6 +233,7 @@ flowchart LR
     F1["fetchGoldWithFallback"]
     F2["fetchUsdVnd"]
     F3["fetchSilverWorldWithFallback\n(silver only)"]
+    F4["fetchVnSilverPrices\n(Phú Quý, silver only)"]
   end
 
   subgraph Hooks["Hooks"]
@@ -244,6 +246,7 @@ flowchart LR
   F2 --> GH
   F2 --> SH
   F3 --> SH
+  F4 --> SH
   F1 --> VN
 
   GH --> GD["GoldDashboard"]
@@ -303,7 +306,7 @@ flowchart LR
 | WebSocket **reconnect** cycles may cause brief gaps; status shown in UI. | **Reconnect** WS có thể tạo khoảng trống ngắn; UI hiển thị trạng thái. |
 | **No server DB** — clearing storage or new device loses local data; use **export/import** (`exportImport.ts`) to back up watchlist, portfolio, alerts, simulator state. | **Không DB** — mất dữ liệu nếu xóa storage; dùng **export/import JSON** để sao lưu. |
 | **Browser storage quota** — large watchlists + history can approach **`localStorage` limits**; app surfaces a toast on save failure. | **Quota storage** — watchlist lớn có thể đầy bộ nhớ; lưu lỗi hiện toast. |
-| **VN silver** depends on listing feed containing a silver row. | **Bạc VN** phụ thuộc bảng niêm yết có dòng bạc. |
+| **VN silver** — one domestic source (Phú Quý, `giabac.phuquygroup.vn`); if fetch/parse fails the VN listing section is hidden while world spot remains visible. | **Bạc VN** — một nguồn nội địa (Phú Quý); nếu fetch/parse thất bại thì ẩn niêm yết VN, vẫn hiện spot TG. |
 | **Futures Simulator** uses simplified formulas / liq approximation; not a substitute for exchange risk tools. | **Simulator** dùng công thức đơn giản; không thay công cụ quản trị rủi ro trên sàn. |
 | **`getMetalMarketStatus`** models generic OTC metal hours; broker feeds may differ. | **`getMetalMarketStatus`** là model OTC tổng quát; giờ thật có thể khác từng broker. |
 
@@ -312,3 +315,7 @@ flowchart LR
 ## Related docs | Tài liệu liên quan
 
 - **Run & intro / Chạy & giới thiệu repo:** [README.md](./README.md)
+
+---
+
+*Version 1.7.1 — 2026-06-10*

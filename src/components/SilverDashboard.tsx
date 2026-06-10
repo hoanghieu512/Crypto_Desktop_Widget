@@ -210,41 +210,57 @@ export function SilverDashboard({ silver }: Props) {
           <h2 className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 min-[361px]:text-xs">
             Niêm yết trong nước (chi tiết)
           </h2>
-          <ul className="flex flex-col gap-2">
-            {listings.map((row) => {
-              const rowSpread = row.sell - row.buy
+          {(() => {
+            const brands = [...new Set(listings.map((r) => r.brand))]
+            return brands.map((brand) => {
+              const rows = listings.filter((r) => r.brand === brand)
               return (
-                <li
-                  key={row.code}
-                  className="rounded-xl border border-white/[0.07] bg-slate-900/60 app-pad-md ring-1 ring-black/20"
-                >
-                  <div className="flex min-w-0 items-baseline justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-medium text-slate-200">{row.brand}</p>
-                      <p className="truncate text-[10px] text-slate-500">
-                        {row.name} · {row.unit}
-                      </p>
-                    </div>
-                    <span className="shrink-0 rounded bg-slate-800/80 px-1.5 py-0.5 font-mono text-[9px] text-slate-400">
-                      {row.code}
-                    </span>
-                  </div>
-                  <div className="mt-2 flex justify-between gap-3 text-[11px]">
-                    <span className="text-slate-500">Mua</span>
-                    <span className="tabular-nums text-emerald-400/90">{fmtLevel(row.buy)}</span>
-                  </div>
-                  <div className="flex justify-between gap-3 text-[11px]">
-                    <span className="text-slate-500">Bán</span>
-                    <span className="tabular-nums font-semibold text-rose-300/90">{fmtLevel(row.sell)}</span>
-                  </div>
-                  <div className="mt-1 flex justify-between gap-3 border-t border-white/5 pt-1 text-[10px] text-slate-500">
-                    <span>Chênh mua/bán</span>
-                    <span className="tabular-nums text-slate-400">{fmtLevel(rowSpread)}</span>
-                  </div>
-                </li>
+                <div key={brand} className="flex flex-col gap-2">
+                  <p className="text-[10px] font-medium text-slate-400">{brand}</p>
+                  <ul className="flex flex-col gap-2">
+                    {rows.map((row) => (
+                      <li
+                        key={row.code}
+                        className="rounded-xl border border-white/[0.07] bg-slate-900/60 app-pad-md ring-1 ring-black/20"
+                      >
+                        <div className="flex min-w-0 items-baseline justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-medium text-slate-200">
+                              {row.name}
+                            </p>
+                            <p className="truncate text-[10px] text-slate-500">{row.unit}</p>
+                          </div>
+                          <span className="shrink-0 rounded bg-slate-800/80 px-1.5 py-0.5 font-mono text-[9px] text-slate-400">
+                            {row.code}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex justify-between gap-3 text-[11px]">
+                          <span className="text-slate-500">Mua</span>
+                          <span className="tabular-nums text-emerald-400/90">
+                            {fmtLevel(row.buy)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-3 text-[11px]">
+                          <span className="text-slate-500">Bán</span>
+                          <span className="tabular-nums font-semibold text-rose-300/90">
+                            {row.sell != null ? fmtLevel(row.sell) : '—'}
+                          </span>
+                        </div>
+                        {row.sell != null ? (
+                          <div className="mt-1 flex justify-between gap-3 border-t border-white/5 pt-1 text-[10px] text-slate-500">
+                            <span>Chênh mua/bán</span>
+                            <span className="tabular-nums text-slate-400">
+                              {fmtLevel(row.sell - row.buy)}
+                            </span>
+                          </div>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )
-            })}
-          </ul>
+            })
+          })()}
         </section>
       ) : null}
     </div>

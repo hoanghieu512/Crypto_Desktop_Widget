@@ -29,10 +29,11 @@ Chi tiết kiến trúc, luồng dữ liệu và hạn chế: xem **[PROJECT_OVE
   - **Terminology (Binance-style)**: user nhập **MARGIN (USDT)**, chọn **LEVERAGE** → app tính **NOTIONAL = margin × lev** và **SIZE (coins) = notional / entry**.
   - **State persistence** theo symbol (đóng/mở lại không mất Entry/Margin/Lev/TP/SL/Side) + nút **Reset**.
   - **Locale number parsing**: hỗ trợ nhập `808,8` hoặc `808.8`.
-- **Vàng / Bạc (Valuation widgets)** — UI tối giản tập trung **so sánh VN vs TG** và **spread** (màu: đỏ = VN cao hơn, xanh = VN thấp hơn). Nhỏ (300–360px) chỉ hiển thị dữ liệu thiết yếu; rộng hơn có thêm so sánh/chi tiết.
-- **Niêm yết trong nước (tuỳ màn hình)** — Vàng SJC/DOJI/BTMC và bạc Phú Quý chỉ hiện chi tiết ở width đủ lớn để tránh “bảng dài” trên widget nhỏ.
+- **Vàng / Bạc (Valuation widgets)** — UI tối giản tập trung **so sánh VN vs TG** và **spread** (màu: đỏ = VN cao hơn, xanh = VN thấp hơn). Nhỏ (300–360px) chỉ hiển thị dữ liệu thiết yếu; rộng hơn có thêm so sánh/chi tiết. Bạc VN: niêm yết **Phú Quý** (giabac.phuquygroup.vn).
+- **Niêm yết trong nước (tuỳ màn hình)** — Vàng SJC/DOJI/BTMC và bạc **Phú Quý** chỉ hiện chi tiết ở width đủ lớn để tránh “bảng dài” trên widget nhỏ.
 - **Định dạng** — hiển thị số theo `FormatProvider` (VND/USD, v.v.).
 - **Interaction system (subtle)** — tooltip phiên (3 dòng, delay ~140ms), hover nhẹ trên dòng watchlist và giá, focus ring tinh tế cho input, flash giá lên/xuống rất nhẹ.
+- **Version display** — số version (`v1.x.x`) hiện nhỏ, mờ cạnh nút minimize/close trên Electron; đọc từ `package.json` lúc build, không hard-code.
 - **Portfolio (Futures)** — quản lý vị thế futures theo kiểu Binance:
   - **Manual positions**: nhập tay (Add/Clear/Delete); có trường **ghi chú** (tùy chọn, tối đa 500 ký tự).
   - **Binance API sync (READ-ONLY)**: đồng bộ từ tài khoản Binance Futures qua endpoint `GET /fapi/v2/positionRisk` (không có trade/withdraw).  
@@ -101,7 +102,7 @@ Dừng: **Ctrl+C** trong terminal. Nếu port **5173** bị chiếm:
 npm run dev:electron:5174
 ```
 
-### Build production
+### Build production (web bundle)
 
 ```bash
 npm run build
@@ -109,10 +110,19 @@ npm run build
 
 Output: thư mục `dist/`.
 
+### Đóng gói macOS (.dmg)
+
+```bash
+npm run dist:mac
+```
+
+Chạy Vite build rồi đóng gói Electron thành file `.dmg` trong thư mục `release/`. Mở file → kéo app vào Applications → **chuột phải → Open** (bỏ qua Gatekeeper lần đầu). Không cần dev server hay terminal để chạy.
+
 ### Lệnh khác
 
 | Lệnh | Mô tả |
 |------|--------|
+| `npm run dist:mac` | Đóng gói macOS x64 → `release/*.dmg` |
 | `npm run preview` | Xem trước bản build Vite |
 | `npm run lint` | ESLint |
 | `npm run electron` | Electron (cần bundle / URL load phù hợp) |

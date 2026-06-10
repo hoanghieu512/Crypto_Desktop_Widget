@@ -164,6 +164,9 @@ export default function App() {
 
             {electron ? (
               <div className="flex shrink-0 items-center gap-0.5">
+              <span className="select-none px-1 font-mono text-[9px] text-bx-muted">
+                v{__APP_VERSION__}
+              </span>
               <button
                 type="button"
                 aria-label={alwaysOnTop ? 'Tắt luôn trên cùng' : 'Bật luôn trên cùng'}

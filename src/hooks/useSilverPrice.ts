@@ -227,7 +227,8 @@ export function useSilverPrice(enabled: boolean) {
         : null
 
     const primary = primaryVnListing(vnSilverListings)
-    const vnMid = primary != null ? (primary.buy + primary.sell) / 2 : null
+    const vnMid =
+      primary != null && primary.sell != null ? (primary.buy + primary.sell) / 2 : null
     const vnBuy = primary?.buy ?? null
     const vnSell = primary?.sell ?? null
     const vnLabel =
@@ -300,7 +301,6 @@ export function useSilverPrice(enabled: boolean) {
     isStale: staleMeta.isStale,
     cachedAt: staleMeta.cachedAt,
     staleBanner,
-    /** Niêm yết Phú Quý — trả về giống useVnMetalPrices */
     listings: vnSilverListings,
     lastUpdated: vnSilverLastUpdated,
     /** cùng cờ loading tổng (spot + FX + Phú Quý) */

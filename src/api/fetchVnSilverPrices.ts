@@ -12,7 +12,7 @@ export interface VnSilverListing {
   code: string
   name: string
   buy: number
-  sell: number
+  sell: number | null
   unit: string
   updatedAt: string
 }

@@ -213,4 +213,18 @@ HMAC-SHA256 signature cho Binance signed endpoints (`/fapi/v2/positionRisk`, `/f
 - **AES-GCM key derivation** — `stableDeviceKeyMaterial()` trong `encryption.ts` dùng `navigator.userAgent + screen dimensions` — không phải bảo mật thực sự, chỉ để obfuscate key khỏi casual inspection. Binance API key có thể bị recover nếu ai đó biết device fingerprint.
 - **`arrayMove` trong usePortfolio** — import từ `@dnd-kit/sortable`, không phải tự implement. Dnd-kit handles optimistic reorder trong UI, hook persist sau drop event.
 
-## Current version: 1.6.0
+## Release checklist — sau mỗi lần chỉnh sửa có thay đổi version
+
+Sau mỗi lần implement xong, chạy theo thứ tự:
+
+1. `tsc --noEmit` — phải pass clean trước khi bump version
+2. Bump `"version"` trong `package.json`
+3. Cập nhật `## Current version:` trong `CLAUDE.md`
+4. Thêm entry `## [X.Y.Z]` vào đầu `CHANGELOG.md`
+5. Cập nhật `PROJECT_OVERVIEW.md` — module notes + Known Issues table + footer version/date
+6. Cập nhật `README.md` — các bullet liên quan đến feature bị thay đổi
+7. Cập nhật memory file `/Users/lavopavden/.claude/projects/-Users-lavopavden-Dev-projects-OnChainRep/memory/project_overview.md` — version + version history table row
+
+Bước 5–7 chỉ cần làm khi user yêu cầu "update docs/readme/overview" sau khi code xong, hoặc khi thay đổi ảnh hưởng đến flow được mô tả trong các file đó.
+
+## Current version: 1.7.1
