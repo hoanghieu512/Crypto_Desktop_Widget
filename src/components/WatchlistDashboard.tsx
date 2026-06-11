@@ -358,7 +358,7 @@ function WatchlistSocketLine({
     slice.status === 'reconnecting' ||
     slice.status === 'connecting' ||
     slice.status === 'closed'
-  const dot = ok ? 'bg-bx-green' : warn ? 'bg-bx-yellow' : 'bg-bx-muted'
+  const dot = ok ? 'bg-accent' : warn ? 'bg-amber-400' : 'bg-bx-muted'
   const statusText = ok
     ? 'OK'
     : slice.status === 'reconnecting'
@@ -514,9 +514,9 @@ const WatchlistRow = memo(function WatchlistRow({
       {onQuickAddAlert ? (
         <button
           type="button"
-          className={`${iconBtnClass} hover:text-bx-yellow ${
+          className={`${iconBtnClass} hover:text-accent ${
             hasAlert
-              ? 'text-bx-yellow'
+              ? 'text-accent'
               : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto'
           }`}
           title="Set alert"
@@ -539,7 +539,7 @@ const WatchlistRow = memo(function WatchlistRow({
   const priceTransition = 'transition-[color,opacity] duration-300 ease-out'
 
   const rowHover =
-    'border-b border-bx-border-subtle transition-[background-color] duration-[120ms] hover:bg-bx-surface/60'
+    'border-b border-bx-border-subtle/60 transition-[background-color] duration-[120ms] hover:bg-bx-surface/60'
 
   const symbolBadges =
     market === 'futures' ? (
@@ -549,7 +549,7 @@ const WatchlistRow = memo(function WatchlistRow({
       </>
     ) : (
       <>
-        <span className={`${badgeBase} bg-yellow-500/20 text-yellow-400`}>SPOT</span>
+        <span className={`${badgeBase} bg-slate-600/40 text-slate-300`}>SPOT</span>
         <span className={`${badgeBase} bg-gray-500/20 text-gray-400`}>LAST</span>
       </>
     )
@@ -563,7 +563,7 @@ const WatchlistRow = memo(function WatchlistRow({
             className={`${togglePillBase} ${
               market === 'spot'
                 ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
-                : 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
+                : 'bg-slate-600/40 text-slate-300 hover:bg-slate-600/60'
             }`}
             title="Đổi Spot / Futures cho dòng này"
             onClick={(e) => {
@@ -690,10 +690,10 @@ const WatchlistRow = memo(function WatchlistRow({
       coreCell(false, (
         <>
           <div className="flex min-w-0 items-center justify-between gap-2">
-            <span title={hint ?? undefined} className="truncate text-[13px] font-semibold text-bx-primary">
+            <span title={hint ?? undefined} className="truncate text-[14px] font-bold leading-5 text-bx-primary">
               {display}
             </span>
-            <span className="shrink-0 font-price text-[15px] tabular-nums text-bx-muted">…</span>
+            <span className="shrink-0 font-price text-[16px] leading-5 tabular-nums text-bx-muted">…</span>
           </div>
           <div className="flex min-w-0 items-center justify-between gap-2">
             <span className="flex min-w-0 flex-wrap items-center gap-1">{symbolBadges}</span>
@@ -712,7 +712,7 @@ const WatchlistRow = memo(function WatchlistRow({
       coreCell(false, (
         <>
           <div className="flex min-w-0 items-center justify-between gap-2">
-            <span title={hint ?? undefined} className="truncate text-[13px] font-semibold text-bx-primary">
+            <span title={hint ?? undefined} className="truncate text-[14px] font-bold leading-5 text-bx-primary">
               {display}
             </span>
             <div className="flex shrink-0 items-center gap-2">
@@ -736,11 +736,11 @@ const WatchlistRow = memo(function WatchlistRow({
                 {Number.isFinite(lastN) ? (
                   <CryptoAmount
                     raw={price.lastPrice}
-                    className="font-price text-[15px] text-bx-primary"
+                    className="font-price text-[16px] leading-5 text-bx-primary"
                     transitionClass={priceTransition}
                   />
                 ) : (
-                  <span className="font-price text-[15px] text-bx-muted">—</span>
+                  <span className="font-price text-[16px] leading-5 text-bx-muted">—</span>
                 )}
               </div>
             </div>
@@ -777,7 +777,7 @@ const WatchlistRow = memo(function WatchlistRow({
     coreCell(true, (
       <>
         <div className="flex min-w-0 items-center justify-between gap-2">
-          <span title={hint ?? undefined} className="truncate text-[13px] font-semibold text-bx-primary">
+          <span title={hint ?? undefined} className="truncate text-[14px] font-bold leading-5 text-bx-primary">
             {display}
           </span>
           <div className="flex shrink-0 items-center gap-2">
@@ -801,11 +801,11 @@ const WatchlistRow = memo(function WatchlistRow({
               {Number.isFinite(markN) ? (
                 <CryptoAmount
                   raw={f.markPrice}
-                  className="font-price text-[15px] text-bx-primary"
+                  className="font-price text-[16px] leading-5 text-bx-primary"
                   transitionClass={priceTransition}
                 />
               ) : (
-                <span className="font-price text-[15px] text-bx-muted">—</span>
+                <span className="font-price text-[16px] leading-5 text-bx-muted">—</span>
               )}
             </div>
           </div>
@@ -830,6 +830,8 @@ export function WatchlistDashboard({
   refreshNonce = 0,
 }: WatchlistDashboardProps = {}) {
   const [watchlistReady, setWatchlistReady] = useState(false)
+  /** Compact/Full dời từ header strip vào toolbar (Phase 3) */
+  const { mode: formatMode, setMode: setFormatMode } = useFormat()
   const [marketMode, setMarketMode] = useState<MarketMode>('global')
   const [globalMarket, setGlobalMarket] = useState<Market>('spot')
   const [items, setItems] = useState<WatchItem[]>([])
@@ -1296,6 +1298,24 @@ export function WatchlistDashboard({
                   </button>
                 </div>
               )}
+              <div className={segWrap} role="group" aria-label="Định dạng số">
+                <button
+                  type="button"
+                  className={`${segBtn} ${formatMode === 'compact' ? segBtnOn : segBtnOff}`}
+                  title="Số rút gọn (k · M · B)"
+                  onClick={() => setFormatMode('compact')}
+                >
+                  Compact
+                </button>
+                <button
+                  type="button"
+                  className={`${segBtn} ${formatMode === 'full' ? segBtnOn : segBtnOff}`}
+                  title="Số đầy đủ"
+                  onClick={() => setFormatMode('full')}
+                >
+                  Full
+                </button>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -1334,7 +1354,7 @@ export function WatchlistDashboard({
               </div>
               <button
                 type="submit"
-                className="app-no-drag shrink-0 rounded-md bg-bx-yellow px-3 py-2 text-xs font-semibold text-bx-add-fg transition-opacity hover:opacity-95 max-[299px]:px-2.5 max-[299px]:py-1.5 max-[299px]:text-[11px]"
+                className="app-no-drag shrink-0 rounded-md bg-accent px-3 py-2 text-xs font-semibold text-bx-add-fg transition-[opacity,background-color] hover:opacity-95 max-[299px]:px-2.5 max-[299px]:py-1.5 max-[299px]:text-[11px]"
               >
                 Thêm
               </button>

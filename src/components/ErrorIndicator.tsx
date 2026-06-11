@@ -12,7 +12,7 @@ export function ErrorIndicator({ message, onRetry, className = '' }: ErrorIndica
     <span className={`relative inline-flex items-center ${className}`.trim()}>
       <button
         type="button"
-        className="app-no-drag inline-flex size-6 items-center justify-center rounded text-bx-yellow/90 hover:bg-bx-elevated hover:text-bx-yellow"
+        className="app-no-drag inline-flex size-6 items-center justify-center rounded text-amber-400/90 hover:bg-bx-elevated hover:text-amber-400"
         title={message}
         aria-label={message}
         onClick={() => {

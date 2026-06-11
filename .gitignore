@@ -15,7 +15,12 @@ lerna-debug.log*
 node_modules/
 dist/
 dist-ssr/
-build/
+# build/ holds electron-builder resources (app icon) — ignore contents except icon assets
+build/*
+!build/icon.icns
+!build/icon.png
+!build/icon.svg
+!build/icon-small.svg
 
 # =========================
 # Env files

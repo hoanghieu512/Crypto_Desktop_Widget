@@ -9,10 +9,11 @@ export type AssetCardType = BadgeVariant
 const cardShell =
   'rounded-2xl border border-white/5 bg-slate-900/80 shadow-sm transition-colors duration-200 hover:border-white/10'
 
+/* Phase 3: title trắng trung tính — accent dồn vào badge mã sản phẩm */
 const titleAccent: Record<AssetCardType, string> = {
   crypto: 'text-blue-100/95',
-  gold: 'text-amber-200/90',
-  silver: 'text-slate-200/90',
+  gold: 'text-bx-primary',
+  silver: 'text-bx-primary',
 }
 
 const defaultBadgeText: Record<AssetCardType, string> = {

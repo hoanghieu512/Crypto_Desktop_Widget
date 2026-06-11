@@ -1,5 +1,65 @@
 # Changelog
 
+## [1.8.2] - 2026-06-11
+### Added — UI Overhaul Phase 3/4: Tab Vàng / Bạc + dọn header
+- **Token `--color-bx-neutral` #3a424d**: phần TG của spread bar — xám trung tính, phần VN mang accent tab
+
+### Changed
+- **Header (mọi tab)**: bỏ chấm trạng thái kết nối cạnh tab Crypto (trạng thái đã có ở status bar dưới — gỡ luôn state `cryptoConn` + prop `onConnectionStatusChange` không còn ai đọc); bỏ hẳn hàng strip "TIỀN TỆ / ĐỊNH DẠNG" dưới tab bar — mọi tab thu hồi một hàng chiều cao. `FormatControls.tsx` xoá (dead code)
+- **Compact/Full** dời vào hàng toolbar Crypto (cạnh Chung/Từng coin, Spot/Futures), dùng chung style segment; **VND/USD** chỉ còn bản trong card (`MetalCurrencySeg`) — setting chung qua `FormatProvider`, đổi ở Vàng thì Bạc đổi theo
+- **ValuationWidget** (core 2 tab kim loại): title + giá trị spread → `text-accent` (gold/silver tự theo tab qua `data-accent`, hết `sky-300` ở Bạc); mô tả "VN cao hơn TG" → secondary (theo mockup); spread bar TG `bg-bx-neutral` / VN `bg-accent` + nhãn hai đầu cùng hệ — hết `sky-500`/`amber-400`; hierarchy card: header card 11px semibold, nhãn Mua/Bán 11px muted, giá VN 14px bold profit/loss, giá TG 13px bold trắng trung tính (theo mockup — TG là giá tham chiếu)
+- **Card niêm yết chi tiết**: title trắng trung tính (`AssetCard` titleAccent gold/silver → `text-bx-primary`); badge mã sản phẩm → tông accent nhạt (`Badge` gold/silver variant → `bg-accent/[0.14] text-accent ring-accent/30`; badge code ở Bạc tương tự); hàng Mua/Bán 12px bold profit/loss đối xứng (Bán trước đây to hơn Mua)
+- **StaleBanner style mới**: nền `amber-400/[0.07]` + viền mảnh `amber-400/30`, icon ⚠ (spinner khi đang tải lại), chữ một dòng truncate + title tooltip; nút Làm mới ghost amber. Hành vi giữ nguyên. Các khối warning amber đậm (`bg-amber-950/*`) ở GoldDashboard / SilverDashboard / PreciousMetalsPanel đồng bộ cùng treatment nhạt
+
+### Notes
+- Link `text-violet-400` (vang.today, Phú Quý) giữ nguyên — tím, không thuộc diện "xanh dương" của brief
+- Portfolio / Simulator / Alerts panel chưa đụng (phase 4)
+- Mockup tham chiếu: `mockup-phase3-gold-silver.svg`
+
+## [1.8.1] - 2026-06-11
+### Added — UI Overhaul Phase 2/4: Limelight + Tab Crypto + Window State
+- **Window state** (`electron/main.cjs`): nhớ size + vị trí qua `userData/window-state.json` — debounce 400ms khi move/resize, chốt lần cuối khi close. Vị trí lưu được validate với cấu hình màn hình hiện tại (cần ≥64px giao với workArea của một display); màn cũ không còn → giữ size, reset vị trí về bottom-right màn chính. Default mới 440×640 (đủ rộng cho 2 card Vàng VN/TG cạnh nhau — `grid-cols-2` từ ≥380px)
+- **Limelight tab bar** (`.app-limelight` trong `index.css` + đo đạc trong `App.tsx`): thanh sáng 3px sát mép trên cửa sổ ngay phía trên tab active + nón ánh sáng gradient (clip-path trapezoid, 14% → 0) toả xuống chữ tab; trượt mượt 300ms (transform + width) khi chuyển tab, màu theo `--app-accent`. Vị trí đo bằng `offsetLeft/offsetWidth` của button active, `ResizeObserver` đo lại khi live-dot hiện/ẩn hoặc nav wrap. Thay thế hoàn toàn glow toàn đỉnh phase 1 (`.app-accent-glow` đã gỡ); underline `border-b-2` của tab active cũng gỡ — limelight là nguồn sáng duy nhất
+- **Sparkline gradient fill** (`Sparkline.tsx`): area path dưới line, gradient theo hướng giá (up 0.28 / down 0.25 → 0), flat không fill; gradient id qua `useId()` — không đụng độ giữa các row, không thêm effect/state nên không gây giật khi list dài
+
+### Changed
+- **Hết #f0b90b trên tab Crypto**: nút "Thêm" → `bg-accent`; pill Alerts → chữ accent + bell SVG (thay emoji 🔔); dot status bar OK → accent; warning dot/banner/icon (`ConnectionBanner`, `ErrorIndicator`, `ErrorState` icon) → `amber-400` (semantic warning, không phải brand gold); nút Thử lại `ErrorState` → `bg-accent`
+- **Badge SPOT** → tông trung tính sáng `bg-slate-600/40 text-slate-300` (cả toggle pill hover-reveal); FUT/MARK/LAST giữ nguyên
+- **Hierarchy hàng giá**: symbol 13px semibold → 14px bold, giá 15px → 16px (vẫn `font-price` weight 600 + tabular-nums), `leading-5` khoá chiều cao hàng; divider giữa hàng → `border-bx-border-subtle/60` (mảnh/nhạt hơn)
+- **Session pill** ASIA/EU/US: `rounded-full`, active = `bg-accent/15 text-accent ring-accent/50`, inactive nền surface chữ muted
+
+### Notes
+- Tab Vàng/Bạc (phase 3) và Portfolio/Simulator/Alerts panel (phase 4) chưa đụng — `bg-bx-yellow`/amber trong các panel đó giữ nguyên
+- Mockup tham chiếu: `mockup-phase2-limelight-crypto.svg`
+
+## [1.8.0] - 2026-06-11
+### Added — UI Overhaul Phase 1/4: Foundation "Metal Accent"
+- **Token v2** (`src/index.css` `@theme`): 3 brand accent — `--color-accent-crypto` #2dd4a7, `--color-accent-gold` #f0b90b, `--color-accent-silver` #c0c7d1; `--color-accent` động theo tab đang active. Hai quy tắc cứng: (a) brand accent chỉ sống ở chrome (tab active, underline, glow, connection dot, floating button) — không vào ô số liệu giá; (b) semantic giá up #26a17b / down #f6465d bất biến, không đổi theo tab
+- **Accent động theo tab**: `data-accent={tab}` trên app shell + `--app-accent` đăng ký qua `@property` (syntax `<color>`) → chuyển tab là transition màu 280ms mượt trên mọi điểm chrome, kể cả trong gradient. Lưu ý kỹ thuật: `--color-accent: var(--app-accent)` phải redeclare trên `[data-accent]` (var() trong custom property substitute tại element khai báo — chỉ khai báo ở `:root` thì override theo tab không có tác dụng)
+- **Glow đỉnh cửa sổ**: `.app-accent-glow` — radial gradient từ đỉnh, `color-mix` 15% accent, cao 116px, `pointer-events: none` (không ảnh hưởng drag region Electron)
+
+### Changed
+- **#f0b90b đổi vai — chỉ còn thuộc tab Vàng**: tab active / underline / pin always-on-top / connection dot / badge đếm (Alerts, Portfolio) chuyển từ `bx-yellow` cứng sang `accent` động; bell-alert toggle trong watchlist row và session chip active (`SessionBar`) chuyển sang `accent` (= teal trong tab Crypto)
+- **FloatingPortfolioButton**: nền `bg-accent/[0.92]` + glyph bar-chart SVG tối (theo mockup) thay cho nền surface + emoji 📊; badge đếm chuyển sang inverse (nền tối viền medium) tránh accent-chồng-accent
+- **Connection dot** (tab Crypto, trạng thái live): `bx-green` → `accent` + glow nhẹ
+- **Keyframes token-correct**: `app-input-pulse` (feedback input simulator) từ gold cứng → `color-mix` theo accent; `bx-price-flash` (flash neutral khi giá đổi) từ gold → trắng mờ 12% — brand accent không vào ô giá
+
+### Notes
+- Phạm vi CHỈ foundation/chrome — watchlist rows, cards Vàng/Bạc, Portfolio/Simulator/Alerts panel giữ nguyên (phase 2–4)
+- CTA `bg-bx-yellow` (nút Thêm/Save) và warning amber giữ nguyên — không phải active state, sẽ xử lý ở phase sau
+- Mockup tham chiếu: `mockup-phase1-metal-accent.svg`
+
+## [1.7.2] - 2026-06-11
+### Added
+- **macOS app icon** (concept "3 đồng xu"): squircle nền gradient dark, 3 xu chồng nhau — bạc "Ag" (sau-trái), vàng "Au" (sau-phải), xu crypto xanh "₿" to nhất (trước-giữa) — tương ứng 3 tab Crypto / Vàng / Bạc
+  - Source SVG: `build/icon.svg` (full detail) + `build/icon-small.svg` (simplified cho 16/32px — bỏ chữ, bỏ grid lines, outline đậm tách 3 xu)
+  - `build/icon.icns` (đủ size 16→1024 + @2x) khai báo trong `build.mac.icon` — Dock / Finder / Launchpad / Cmd-Tab dùng icon này ở bản đóng gói
+  - `build/icon.png` (512px) dùng cho `app.dock.setIcon()` ở dev mode (macOS only, guard try/catch)
+- `.gitignore`: `build/` → `build/*` + exceptions cho 4 icon assets (gitignore không negate được file trong thư mục đã ignore nguyên cả thư mục)
+
+### Changed
+- Thêm soft shadow dưới xu crypto trong `icon.svg` so với concept gốc — tách xu trước khỏi 2 xu sau rõ hơn ở size trung bình
+
 ## [1.7.1] - 2026-06-10
 ### Added
 - **macOS distribution packaging**: `electron-builder` added as devDependency; `build` config in `package.json` targets macOS x64 DMG (no code-signing, Gatekeeper bypass via right-click → Open on first launch); output to `release/`; new script `npm run dist:mac` runs Vite build then electron-builder in one step

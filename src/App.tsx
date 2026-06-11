@@ -1,12 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { FormatProvider } from './providers/FormatProvider'
-import { FormatControls } from './components/FormatControls'
 import { PreciousMetalsPanel } from './components/PreciousMetalsPanel'
 import { SilverPanel } from './components/SilverPanel'
 import { WatchlistDashboard } from './components/WatchlistDashboard'
 import { FloatingPortfolioButton } from './components/FloatingPortfolioButton'
 import { PortfolioSidePanel } from './components/PortfolioSidePanel'
-import type { RealtimeConnectionStatus } from './hooks/useRealtimePrice'
 import { usePriceAlerts } from './hooks/usePriceAlerts'
 import { AlertsPanel } from './components/AlertsPanel'
 import { AlertToast } from './components/AlertToast'
@@ -24,7 +22,6 @@ function isElectron(): boolean {
 export default function App() {
   const [tab, setTab] = useState<Tab>('crypto')
   const [alwaysOnTop, setAlwaysOnTop] = useState(true)
-  const [cryptoConn, setCryptoConn] = useState<RealtimeConnectionStatus | null>(null)
   const [portfolioOpen, setPortfolioOpen] = useState(false)
   const [alertsOpen, setAlertsOpen] = useState(false)
   const [alertPrefill, setAlertPrefill] = useState<{ symbol?: string; currentPrice?: number | null }>({})
@@ -33,8 +30,27 @@ export default function App() {
   const [cryptoRefreshNonce, setCryptoRefreshNonce] = useState(0)
   const electron = isElectron()
 
+  /** Limelight: đo vị trí/width tab active để thanh sáng + nón trượt theo */
+  const navRef = useRef<HTMLElement | null>(null)
+  const [limelight, setLimelight] = useState<{ x: number; w: number } | null>(null)
+
+  useLayoutEffect(() => {
+    const nav = navRef.current
+    if (!nav) return
+    const activeBtn = nav.querySelector<HTMLButtonElement>(`button[data-tab="${tab}"]`)
+    if (!activeBtn) return
+    const measure = () => {
+      setLimelight({ x: activeBtn.offsetLeft, w: activeBtn.offsetWidth })
+    }
+    measure()
+    // Width tab đổi khi nav wrap / resize → đo lại
+    const ro = new ResizeObserver(measure)
+    ro.observe(nav)
+    ro.observe(activeBtn)
+    return () => ro.disconnect()
+  }, [tab])
+
   useEffect(() => {
-    if (tab !== 'crypto') setCryptoConn(null)
     if (tab !== 'crypto') setPortfolioOpen(false)
     if (tab !== 'crypto') setAlertsOpen(false)
   }, [tab])
@@ -113,49 +129,56 @@ export default function App() {
 
   return (
     <FormatProvider>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-bx-border-medium bg-bx-base shadow-2xl shadow-black/50">
+      <div
+        data-accent={tab}
+        className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-bx-border-medium bg-bx-base shadow-2xl shadow-black/50"
+      >
         <header className="app-drag flex min-w-0 shrink-0 flex-col gap-1.5 border-b border-bx-border-subtle bg-bx-surface px-2 py-2 max-[299px]:gap-1 max-[299px]:px-1.5 max-[299px]:py-1.5 min-[361px]:gap-2 min-[361px]:px-3">
           <div className="app-no-drag flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 max-[299px]:gap-x-1.5">
             <nav
-              className="flex min-w-0 flex-wrap items-stretch gap-1"
+              ref={navRef}
+              className="relative flex min-w-0 flex-wrap items-stretch gap-1"
               aria-label="Tab chính"
             >
+            {limelight ? (
+              <span
+                aria-hidden
+                className="app-limelight app-no-drag"
+                style={{ width: limelight.w, transform: `translateX(${limelight.x}px)` }}
+              />
+            ) : null}
             <button
               type="button"
+              data-tab="crypto"
               onClick={() => setTab('crypto')}
-              className={`flex shrink-0 items-center gap-2 border-b-2 px-2.5 py-1.5 text-sm font-medium transition-colors duration-150 sm:px-3 ${
+              className={`flex shrink-0 items-center gap-2 px-2.5 py-1.5 text-sm font-medium transition-colors duration-150 sm:px-3 ${
                 tab === 'crypto'
-                  ? 'border-bx-yellow text-bx-yellow'
-                  : 'border-transparent text-bx-secondary hover:text-bx-primary'
+                  ? 'text-accent'
+                  : 'text-bx-secondary hover:text-bx-primary'
               }`}
             >
-              {tab === 'crypto' && cryptoConn === 'live' ? (
-                <span
-                  className="size-1.5 shrink-0 rounded-full bg-bx-green"
-                  title="Realtime: live"
-                  aria-hidden
-                />
-              ) : null}
               Crypto
             </button>
             <button
               type="button"
+              data-tab="gold"
               onClick={() => setTab('gold')}
-              className={`flex shrink-0 items-center border-b-2 px-2.5 py-1.5 text-sm font-medium transition-colors duration-150 sm:px-3 ${
+              className={`flex shrink-0 items-center px-2.5 py-1.5 text-sm font-medium transition-colors duration-150 sm:px-3 ${
                 tab === 'gold'
-                  ? 'border-bx-yellow text-bx-yellow'
-                  : 'border-transparent text-bx-secondary hover:text-bx-primary'
+                  ? 'text-accent'
+                  : 'text-bx-secondary hover:text-bx-primary'
               }`}
             >
               Vàng
             </button>
             <button
               type="button"
+              data-tab="silver"
               onClick={() => setTab('silver')}
-              className={`flex shrink-0 items-center border-b-2 px-2.5 py-1.5 text-sm font-medium transition-colors duration-150 sm:px-3 ${
+              className={`flex shrink-0 items-center px-2.5 py-1.5 text-sm font-medium transition-colors duration-150 sm:px-3 ${
                 tab === 'silver'
-                  ? 'border-bx-yellow text-bx-yellow'
-                  : 'border-transparent text-bx-secondary hover:text-bx-primary'
+                  ? 'text-accent'
+                  : 'text-bx-secondary hover:text-bx-primary'
               }`}
             >
               Bạc
@@ -171,8 +194,8 @@ export default function App() {
                 type="button"
                 aria-label={alwaysOnTop ? 'Tắt luôn trên cùng' : 'Bật luôn trên cùng'}
                 title={alwaysOnTop ? 'Luôn trên cùng: bật' : 'Luôn trên cùng: tắt'}
-                className={`flex h-8 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-bx-elevated ${
-                  alwaysOnTop ? 'text-bx-yellow' : 'text-bx-muted'
+                className={`flex h-8 w-9 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-bx-elevated ${
+                  alwaysOnTop ? 'text-accent' : 'text-bx-muted'
                 }`}
                 onClick={toggleAlwaysOnTop}
               >
@@ -209,17 +232,11 @@ export default function App() {
             ) : null}
           </div>
 
-          <div className="app-no-drag flex min-w-0 items-center justify-center border-t border-bx-border-subtle/80 pt-1.5 max-[299px]:pt-1 min-[361px]:pt-2">
-            <div className="min-w-0 overflow-x-auto overflow-y-hidden">
-              <FormatControls variant={tab === 'crypto' ? 'crypto' : 'metals'} />
-            </div>
-          </div>
         </header>
 
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {tab === 'crypto' ? (
             <WatchlistDashboard
-              onConnectionStatusChange={setCryptoConn}
               onPricesBySymbolChange={setAlertPrices}
               onQuickAddAlert={(symbol, currentPrice) => {
                 setAlertPrefill({ symbol, currentPrice })
@@ -238,17 +255,30 @@ export default function App() {
           <>
             <button
               type="button"
-              className="app-no-drag fixed bottom-[84px] right-5 z-[130] flex items-center gap-2 rounded-full border border-bx-border-medium bg-bx-elevated px-3 py-2 text-[12px] font-semibold text-bx-primary shadow-lg shadow-black/50 hover:bg-bx-surface"
+              className="app-no-drag fixed bottom-[84px] right-5 z-[130] flex items-center gap-1.5 rounded-full border border-bx-border-medium bg-bx-elevated px-3 py-2 text-[12px] font-semibold text-accent shadow-lg shadow-black/50 transition-colors hover:bg-bx-surface"
               onClick={() => {
                 setAlertPrefill({})
                 setAlertsOpen(true)
               }}
               title="Price alerts"
             >
-              <span aria-hidden>🔔</span>
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+              </svg>
               Alerts
               {alerts.activeEnabledCount > 0 ? (
-                <span className="ml-1 rounded-full bg-bx-yellow px-2 py-0.5 text-[11px] font-semibold text-bx-add-fg">
+                <span className="ml-1 rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-bx-add-fg transition-colors">
                   {alerts.activeEnabledCount}
                 </span>
               ) : null}

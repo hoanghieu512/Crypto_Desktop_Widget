@@ -21,7 +21,7 @@ export function ConnectionBanner({
   const tone =
     variant === 'error'
       ? 'border-bx-red/50 bg-bx-red/10 text-bx-primary'
-      : 'border-bx-yellow/45 bg-bx-yellow/10 text-bx-primary'
+      : 'border-amber-400/45 bg-amber-400/10 text-bx-primary'
 
   return (
     <div
@@ -30,7 +30,7 @@ export function ConnectionBanner({
     >
       {variant !== 'error' ? (
         <span
-          className="inline-block size-3.5 shrink-0 animate-spin rounded-full border-2 border-bx-yellow/40 border-t-bx-yellow"
+          className="inline-block size-3.5 shrink-0 animate-spin rounded-full border-2 border-amber-400/40 border-t-amber-400"
           aria-hidden
         />
       ) : (

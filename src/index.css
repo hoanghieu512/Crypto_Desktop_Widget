@@ -1,5 +1,15 @@
 @import 'tailwindcss';
 
+/*
+ * Metal Accent (token v2, Phase 1): --app-accent đăng ký qua @property
+ * để transition được cả trong gradient (glow) khi chuyển tab.
+ */
+@property --app-accent {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #2dd4a7;
+}
+
 /* Binance/Bybit-style dark tokens — dùng utility Tailwind bx-* */
 @theme {
   --color-bx-base: #0b0e11;
@@ -18,6 +28,19 @@
   --color-bx-spot-blue: #60a5fa;
   --color-bx-header-row: #0f1216;
   --color-bx-add-fg: #1a1a1a;
+  /* Phần TG của spread bar (Phase 3) — xám trung tính, phần VN mang accent tab */
+  --color-bx-neutral: #3a424d;
+
+  /*
+   * Brand accent v2 — CHỈ sống ở chrome (tab active, underline, glow,
+   * connection dot, floating button, viền nhấn card). KHÔNG vào ô số liệu giá.
+   * Semantic giá (profit/loss) bất biến, không đổi theo tab.
+   */
+  --color-accent-crypto: #2dd4a7;
+  --color-accent-gold: #f0b90b;
+  --color-accent-silver: #c0c7d1;
+  /* Accent động theo tab đang active — set qua data-accent trên app shell */
+  --color-accent: var(--app-accent);
 
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
 
@@ -36,6 +59,25 @@
 }
 
 @layer base {
+  /*
+   * Accent theo tab: đổi tab → --app-accent transition mượt trên toàn shell.
+   * --color-accent PHẢI redeclare ở đây (không chỉ trong @theme): var() trong
+   * custom property được substitute tại element khai báo — nếu chỉ khai báo ở
+   * :root thì nó resolve với --app-accent initial (teal) rồi inherit xuống,
+   * override theo tab sẽ không có tác dụng.
+   */
+  [data-accent] {
+    --app-accent: var(--color-accent-crypto);
+    --color-accent: var(--app-accent);
+    transition: --app-accent 280ms ease;
+  }
+  [data-accent='gold'] {
+    --app-accent: var(--color-accent-gold);
+  }
+  [data-accent='silver'] {
+    --app-accent: var(--color-accent-silver);
+  }
+
   html,
   body {
     height: 100%;
@@ -58,6 +100,48 @@
 }
 
 @layer utilities {
+  /*
+   * Limelight (Phase 2) — nguồn sáng duy nhất của shell, thay glow toàn đỉnh.
+   * Element absolute trong nav, JS đặt width + translateX theo tab active;
+   * transition trượt mượt. ::before = thanh sáng sát mép trên cửa sổ
+   * (top -0.5rem = py-2 của header), ::after = nón ánh sáng toả xuống chữ tab.
+   * Màu đi qua --app-accent (registered) → đổi tab là màu fade theo.
+   */
+  .app-limelight {
+    position: absolute;
+    top: -0.5rem;
+    bottom: 0;
+    left: 0;
+    pointer-events: none;
+    transition:
+      transform 300ms cubic-bezier(0.3, 0.9, 0.3, 1),
+      width 300ms cubic-bezier(0.3, 0.9, 0.3, 1);
+    will-change: transform, width;
+  }
+  .app-limelight::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 64%;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: var(--app-accent);
+    box-shadow: 0 1px 8px color-mix(in srgb, var(--app-accent) 40%, transparent);
+  }
+  .app-limelight::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--app-accent) 14%, transparent),
+      transparent
+    );
+    clip-path: polygon(20% 0, 80% 0, 108% 100%, -8% 100%);
+  }
+
   /** Giá: tabular nums, không dùng font-bold (max 600) */
   .font-price {
     font-variant-numeric: tabular-nums;
@@ -174,18 +258,18 @@
     animation: app-price-flash-down 0.52s ease-out;
   }
 
-  /* Click-feedback pulse for target input */
+  /* Click-feedback pulse for target input — theo accent của tab, không hardcode gold */
   @keyframes app-input-pulse {
     0% {
-      box-shadow: inset 0 0 0 1px rgb(240 185 11 / 0.0);
+      box-shadow: inset 0 0 0 1px transparent;
       background-color: transparent;
     }
     15% {
-      box-shadow: inset 0 0 0 1px rgb(240 185 11 / 0.28);
-      background-color: rgb(240 185 11 / 0.08);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent) 28%, transparent);
+      background-color: color-mix(in srgb, var(--app-accent) 8%, transparent);
     }
     100% {
-      box-shadow: inset 0 0 0 1px rgb(240 185 11 / 0.0);
+      box-shadow: inset 0 0 0 1px transparent;
       background-color: transparent;
     }
   }
@@ -209,14 +293,14 @@
     padding: 16px;
   }
 
-  /** Nhấp nháy nhẹ khi giá realtime đổi */
+  /** Nhấp nháy nhẹ khi giá realtime đổi (neutral — brand accent không vào ô giá) */
   .animate-price-flash {
     animation: bx-price-flash 0.5s ease-out;
   }
 
   @keyframes bx-price-flash {
     0% {
-      background-color: rgba(240, 185, 11, 0.18);
+      background-color: rgba(234, 236, 239, 0.12);
     }
     100% {
       background-color: transparent;

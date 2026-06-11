@@ -1,0 +1,44 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, 'SF Pro Display', system-ui, sans-serif">
+  <defs>
+    <linearGradient id="bgDark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b2026"/>
+      <stop offset="1" stop-color="#0b0e11"/>
+    </linearGradient>
+    <linearGradient id="goldCoin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd768"/>
+      <stop offset="1" stop-color="#d9a200"/>
+    </linearGradient>
+    <linearGradient id="silverCoin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e8edf4"/>
+      <stop offset="1" stop-color="#9aa6b5"/>
+    </linearGradient>
+    <linearGradient id="greenCoin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#36c995"/>
+      <stop offset="1" stop-color="#1d7d5c"/>
+    </linearGradient>
+    <clipPath id="squircle"><rect x="92" y="92" width="840" height="840" rx="194"/></clipPath>
+  </defs>
+
+  <!-- macOS squircle background (icon content inset ~9% per Apple grid) -->
+  <g clip-path="url(#squircle)">
+    <rect x="92" y="92" width="840" height="840" fill="url(#bgDark)"/>
+    <!-- subtle grid lines -->
+    <path d="M92 372 H932 M92 652 H932" stroke="#2b3139" stroke-width="4" opacity="0.55"/>
+
+    <!-- silver coin (back-left) -->
+    <circle cx="372" cy="492" r="186" fill="url(#silverCoin)" stroke="#6f7a88" stroke-width="13"/>
+    <circle cx="372" cy="492" r="140" fill="none" stroke="#7d8896" stroke-width="11" opacity="0.7"/>
+    <text x="372" y="538" text-anchor="middle" font-size="128" font-weight="700" fill="#5c6673">Ag</text>
+
+    <!-- gold coin (back-right) -->
+    <circle cx="668" cy="450" r="194" fill="url(#goldCoin)" stroke="#a87f00" stroke-width="13"/>
+    <circle cx="668" cy="450" r="148" fill="none" stroke="#b88c00" stroke-width="11" opacity="0.7"/>
+    <text x="668" y="496" text-anchor="middle" font-size="128" font-weight="700" fill="#8a6a00">Au</text>
+
+    <!-- crypto coin (front-center, largest) — soft shadow lifts it off the back coins -->
+    <circle cx="516" cy="630" r="226" fill="#000" opacity="0.35"/>
+    <circle cx="516" cy="618" r="220" fill="url(#greenCoin)" stroke="#0f5c42" stroke-width="15"/>
+    <circle cx="516" cy="618" r="170" fill="none" stroke="#0f6b4d" stroke-width="13" opacity="0.8"/>
+    <text x="516" y="694" text-anchor="middle" font-size="220" font-weight="700" fill="#073f2d">₿</text>
+  </g>
+</svg>

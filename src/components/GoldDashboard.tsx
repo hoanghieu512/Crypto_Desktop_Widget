@@ -69,7 +69,7 @@ export function GoldDashboard({ active }: Props) {
     <div className="mt-2 space-y-2">
       {vnSjcMissing && worldOk ? (
         <p
-          className="rounded-lg border border-amber-500/35 bg-amber-950/35 app-pad-md text-[11px] leading-snug text-amber-100/95"
+          className="rounded-lg border border-amber-400/30 bg-amber-400/[0.07] app-pad-md text-[11px] leading-snug text-amber-200/90"
           role="status"
         >
           Không có dữ liệu SJC — chỉ hiển thị giá thế giới quy đổi.
@@ -80,7 +80,7 @@ export function GoldDashboard({ active }: Props) {
       ) : null}
       {goldFetchWarning ? (
         <p
-          className="rounded-lg border border-amber-500/35 bg-amber-950/40 app-pad-md text-[10px] leading-snug text-amber-100/90"
+          className="rounded-lg border border-amber-400/30 bg-amber-400/[0.07] app-pad-md text-[10px] leading-snug text-amber-200/90"
           role="status"
         >
           {goldFetchWarning}

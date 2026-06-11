@@ -52,7 +52,7 @@ function MetalCurrencySeg() {
   )
 }
 
-/** Thanh so sánh tương đối VN vs TG (cùng đơn vị). */
+/** Thanh so sánh tương đối VN vs TG (cùng đơn vị). TG xám trung tính, VN accent tab. */
 function SpreadRelBar({
   vnNumeric,
   worldNumeric,
@@ -70,25 +70,24 @@ function SpreadRelBar({
   return (
     <div className="app-vstack-xs">
       <div
-        className="flex h-2 w-full overflow-hidden rounded-full bg-slate-800/90 ring-1 ring-white/5"
+        className="flex h-1.5 w-full overflow-hidden rounded-full"
         title={`${worldLabel} · ${vnLabel}`}
       >
         <div
-          className="h-full bg-sky-500/75 transition-[width] duration-500 ease-out"
+          className="h-full bg-bx-neutral transition-[width] duration-500 ease-out"
           style={{ width: `${tgShare}%` }}
         />
         <div
-          className="h-full bg-amber-400/85 transition-[width] duration-500 ease-out"
+          className="h-full bg-accent transition-[width] duration-500 ease-out"
           style={{ width: `${vnShare}%` }}
         />
       </div>
-      <div className="flex justify-between text-[9px] text-slate-500">
-        <span>
-          <span className="inline-block size-1.5 rounded-full bg-sky-500/75 align-middle" /> TG
+      <div className="flex justify-between text-[9px]">
+        <span className="text-bx-muted">
+          <span className="inline-block size-1.5 rounded-full bg-bx-neutral align-middle" /> TG
         </span>
-        <span>
-          VN{' '}
-          <span className="inline-block size-1.5 rounded-full bg-amber-400/85 align-middle" />
+        <span className="text-accent">
+          VN <span className="inline-block size-1.5 rounded-full bg-accent align-middle" />
         </span>
       </div>
     </div>
@@ -134,7 +133,6 @@ const cardClass =
   'rounded-lg border border-white/5 bg-gray-800/50 p-4 shadow-sm ring-1 ring-black/20'
 
 export function ValuationWidget({
-  asset,
   title,
   sourceLine,
   unitLine,
@@ -153,8 +151,9 @@ export function ValuationWidget({
   showFullComparison = true,
   showSpreadBar = true,
 }: ValuationWidgetProps) {
-  const spreadAccent = asset === 'gold' ? 'text-yellow-400' : 'text-sky-300'
-  const titleAccent = asset === 'gold' ? 'text-yellow-400' : 'text-sky-300'
+  /* Accent theo tab (data-accent trên shell) — gold ở tab Vàng, silver ở tab Bạc */
+  const spreadAccent = 'text-accent'
+  const titleAccent = 'text-accent'
 
   const hasSpread =
     spreadVnd != null &&
@@ -224,34 +223,34 @@ export function ValuationWidget({
               <span className="text-base" aria-hidden>
                 🇻🇳
               </span>
-              <span className="text-sm font-medium text-slate-200">Việt Nam</span>
+              <span className="text-[11px] font-semibold text-bx-primary">Việt Nam</span>
             </div>
-            <div className="space-y-2 text-sm">
+            <div className="space-y-2">
               {loading && !vn ? (
-                <p className="text-slate-500">Đang tải…</p>
+                <p className="text-[11px] text-slate-500">Đang tải…</p>
               ) : vnHasBidAsk ? (
                 <>
-                  <div className="flex justify-between gap-2">
-                    <span className="text-slate-400">Mua</span>
-                    <span className="tabular-nums font-medium text-green-400">{format(vn!.buy!)}</span>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-[11px] text-slate-500">Mua</span>
+                    <span className="text-[14px] font-bold tabular-nums text-profit">{format(vn!.buy!)}</span>
                   </div>
-                  <div className="flex justify-between gap-2">
-                    <span className="text-slate-400">Bán</span>
-                    <span className="tabular-nums font-semibold text-red-400">{format(vn!.sell!)}</span>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-[11px] text-slate-500">Bán</span>
+                    <span className="text-[14px] font-bold tabular-nums text-loss">{format(vn!.sell!)}</span>
                   </div>
                 </>
               ) : vnHasMidOnly ? (
-                <div className="flex justify-between gap-2">
-                  <span className="text-slate-400">Giữa</span>
-                  <span className="tabular-nums font-medium text-slate-200">{format(vn!.mid!)}</span>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[11px] text-slate-500">Giữa</span>
+                  <span className="text-[14px] font-bold tabular-nums text-bx-primary">{format(vn!.mid!)}</span>
                 </div>
               ) : vn?.sell != null ? (
-                <div className="flex justify-between gap-2">
-                  <span className="text-slate-400">Bán</span>
-                  <span className="tabular-nums font-semibold text-red-400">{format(vn.sell)}</span>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[11px] text-slate-500">Bán</span>
+                  <span className="text-[14px] font-bold tabular-nums text-loss">{format(vn.sell)}</span>
                 </div>
               ) : (
-                <p className="text-slate-500">Chưa có dữ liệu VN</p>
+                <p className="text-[11px] text-slate-500">Chưa có dữ liệu VN</p>
               )}
             </div>
           </div>
@@ -261,18 +260,18 @@ export function ValuationWidget({
               <span className="text-base shrink-0" aria-hidden>
                 🌍
               </span>
-              <span className="truncate text-sm font-medium text-slate-200">{world.caption}</span>
+              <span className="truncate text-[11px] font-semibold text-bx-primary">{world.caption}</span>
             </div>
-            <div className="space-y-2 text-sm">
+            <div className="space-y-2">
               {world.buy != null ? (
-                <div className="flex justify-between gap-2">
-                  <span className="text-slate-400">Mua qđ</span>
-                  <span className="tabular-nums text-green-400">{format(world.buy)}</span>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[11px] text-slate-500">Mua qđ</span>
+                  <span className="text-[13px] font-bold tabular-nums text-bx-primary">{format(world.buy)}</span>
                 </div>
               ) : null}
-              <div className="flex justify-between gap-2">
-                <span className="text-slate-400">Bán qđ</span>
-                <span className="tabular-nums font-medium text-slate-100">{format(world.sell!)}</span>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[11px] text-slate-500">Bán qđ</span>
+                <span className="text-[13px] font-bold tabular-nums text-bx-primary">{format(world.sell!)}</span>
               </div>
             </div>
           </div>
@@ -297,7 +296,9 @@ export function ValuationWidget({
             <span className={`text-xl font-bold tabular-nums ${spreadAccent}`}>
               {formatSigned(spreadVnd!)} ({fmtSignedPct(spreadPercent!)})
             </span>
-            <span className={`text-sm font-medium ${spreadAccent}`}>{insightHeadlineVi(insight)}</span>
+            <span className="text-[11px] font-medium text-bx-secondary">
+              {insightHeadlineVi(insight)}
+            </span>
           </div>
 
           {canRelBar ? (

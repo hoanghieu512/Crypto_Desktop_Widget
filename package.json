@@ -1,7 +1,7 @@
 {
   "name": "crypto-desktop-widget",
   "private": true,
-  "version": "1.7.1",
+  "version": "1.8.2",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -33,7 +33,8 @@
       "target": [
         { "target": "dmg", "arch": ["x64"] }
       ],
-      "category": "public.app-category.finance"
+      "category": "public.app-category.finance",
+      "icon": "build/icon.icns"
     },
     "dmg": {
       "title": "${productName} ${version}"

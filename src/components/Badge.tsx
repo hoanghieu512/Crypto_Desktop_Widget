@@ -2,10 +2,12 @@ import { memo, type ReactNode } from 'react'
 
 export type BadgeVariant = 'crypto' | 'gold' | 'silver'
 
+/* gold/silver: tông accent tab nhạt (Phase 3) — render trong shell data-accent nên
+   text-accent/bg-accent tự ra đúng màu kim loại của tab */
 const variantPalette: Record<BadgeVariant, string> = {
   crypto: 'bg-blue-500/15 text-blue-100 ring-blue-500/35',
-  gold: 'bg-amber-500/15 text-amber-100 ring-amber-500/35',
-  silver: 'bg-slate-500/15 text-slate-200 ring-slate-500/35',
+  gold: 'bg-accent/[0.14] text-accent ring-accent/30',
+  silver: 'bg-accent/[0.12] text-accent ring-accent/30',
 }
 
 const base =

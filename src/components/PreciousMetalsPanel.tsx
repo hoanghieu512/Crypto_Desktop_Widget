@@ -80,7 +80,7 @@ export function PreciousMetalsPanel({ active }: Props) {
 
         {goldFetchWarning ? (
           <p
-            className="shrink-0 rounded-lg border border-amber-500/35 bg-amber-950/35 px-3 py-2 text-xs leading-snug text-amber-100/90"
+            className="shrink-0 rounded-lg border border-amber-400/30 bg-amber-400/[0.07] px-3 py-2 text-xs leading-snug text-amber-200/90"
             role="status"
           >
             {goldFetchWarning}
@@ -125,7 +125,7 @@ export function PreciousMetalsPanel({ active }: Props) {
                         <div className={goldBidAskGridClass}>
                           <span className="self-start pt-0.5 text-left text-slate-500">Mua</span>
                           <div className="flex flex-col items-end gap-0.5 text-right leading-tight">
-                            <span className="text-emerald-400">{fmtLevel(q.buy)}</span>
+                            <span className="text-[12px] font-bold tabular-nums text-profit">{fmtLevel(q.buy)}</span>
                             <span
                               className={`text-[10px] tabular-nums ${changeClass(q.changeBuy)}`}
                               title="Δ mua"
@@ -135,7 +135,7 @@ export function PreciousMetalsPanel({ active }: Props) {
                           </div>
                           <span className="self-start pt-0.5 text-left text-slate-500">Bán</span>
                           <div className="flex flex-col items-end gap-0.5 text-right leading-tight">
-                            <span className="text-base font-semibold text-rose-400">
+                            <span className="text-[12px] font-bold tabular-nums text-loss">
                               {fmtLevel(q.sell)}
                             </span>
                             <span

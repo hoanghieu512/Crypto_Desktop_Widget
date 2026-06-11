@@ -24,8 +24,8 @@ export const SessionBox = memo(function SessionBox({ name, active }: SessionBoxP
         tabIndex={0}
         className={
           active
-            ? 'app-no-drag shrink-0 rounded px-1.5 py-0.5 text-xs font-medium tracking-wide bg-bx-elevated text-bx-yellow'
-            : 'app-no-drag shrink-0 rounded px-1.5 py-0.5 text-xs font-medium tracking-wide bg-bx-input text-bx-muted hover:text-bx-secondary'
+            ? 'app-no-drag shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold tracking-wide bg-accent/15 text-accent ring-1 ring-inset ring-accent/50'
+            : 'app-no-drag shrink-0 rounded-full px-2 py-0.5 text-xs font-medium tracking-wide bg-bx-surface text-bx-muted hover:text-bx-secondary'
         }
       >
         {name}

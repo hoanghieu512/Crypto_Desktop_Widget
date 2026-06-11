@@ -42,7 +42,7 @@ export const StaleBanner = memo(function StaleBanner({
 
   return (
     <div
-      className="app-no-drag flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/35 bg-amber-950/45 app-pad-md text-meta leading-snug text-amber-100/95 shadow-sm transition-opacity duration-200"
+      className="app-no-drag flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-400/[0.07] px-2.5 py-1.5 text-meta leading-snug text-amber-200/90 transition-opacity duration-200"
       role="status"
     >
       {showSpinner ? (
@@ -50,12 +50,18 @@ export const StaleBanner = memo(function StaleBanner({
           className="inline-block size-3 shrink-0 animate-spin rounded-full border-2 border-amber-400/50 border-t-transparent"
           aria-hidden
         />
-      ) : null}
-      <span className="min-w-0 flex-1">{text}</span>
+      ) : (
+        <span className="shrink-0 text-[11px] leading-none" aria-hidden>
+          ⚠
+        </span>
+      )}
+      <span className="min-w-0 flex-1 truncate" title={text}>
+        {text}
+      </span>
       {onManualRefresh ? (
         <button
           type="button"
-          className="app-no-drag shrink-0 rounded-md border border-amber-500/50 bg-amber-900/50 px-2 py-0.5 text-meta font-medium text-amber-50 transition-colors hover:border-amber-400/70 hover:bg-amber-900/70"
+          className="app-no-drag shrink-0 rounded-md border border-amber-400/40 px-2 py-0.5 text-meta font-medium text-amber-200 transition-colors hover:bg-amber-400/10"
           onClick={() => onManualRefresh()}
         >
           Làm mới

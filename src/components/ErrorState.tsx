@@ -31,7 +31,7 @@ export function ErrorState({
         className={`flex flex-wrap items-center gap-2 rounded-lg border border-bx-border-medium border-l-4 border-l-bx-red bg-bx-elevated/80 px-3 py-2 text-left ${className}`.trim()}
         role="alert"
       >
-        <span className="shrink-0 text-bx-yellow">{icon ?? defaultIcon}</span>
+        <span className="shrink-0 text-amber-400">{icon ?? defaultIcon}</span>
         <div className="min-w-0 flex-1">
           <p className="text-[12px] font-semibold text-bx-primary">{title}</p>
           <p className="text-[11px] leading-snug text-bx-secondary">{message}</p>
@@ -54,7 +54,7 @@ export function ErrorState({
       className={`flex flex-col items-center justify-center gap-3 rounded-lg border border-bx-border-medium border-l-4 border-l-bx-red bg-bx-elevated/60 p-6 text-center ${className}`.trim()}
       role="alert"
     >
-      <div className="text-bx-yellow">{icon ?? defaultIcon}</div>
+      <div className="text-amber-400">{icon ?? defaultIcon}</div>
       <div className="max-w-md space-y-1">
         <p className="text-sm font-semibold text-bx-primary">{title}</p>
         <p className="text-[13px] leading-relaxed text-bx-secondary">{message}</p>
@@ -62,7 +62,7 @@ export function ErrorState({
       {onRetry ? (
         <button
           type="button"
-          className="app-no-drag rounded-md bg-bx-yellow px-4 py-2 text-[12px] font-semibold text-bx-add-fg hover:opacity-95"
+          className="app-no-drag rounded-md bg-accent px-4 py-2 text-[12px] font-semibold text-bx-add-fg hover:opacity-95"
           onClick={onRetry}
         >
           {retryLabel}

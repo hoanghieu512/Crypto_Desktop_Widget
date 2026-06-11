@@ -76,7 +76,7 @@ export function SilverDashboard({ silver }: Props) {
     <div className="mt-2 space-y-2">
       {worldWarning ? (
         <p
-          className="rounded-lg border border-amber-500/35 bg-amber-950/40 app-pad-md text-[10px] leading-snug text-amber-100/90"
+          className="rounded-lg border border-amber-400/30 bg-amber-400/[0.07] app-pad-md text-[10px] leading-snug text-amber-200/90"
           role="status"
         >
           {worldWarning}
@@ -84,7 +84,7 @@ export function SilverDashboard({ silver }: Props) {
       ) : null}
       {listingsWarning ? (
         <p
-          className="rounded-lg border border-amber-500/35 bg-amber-950/40 app-pad-md text-[10px] leading-snug text-amber-100/90"
+          className="rounded-lg border border-amber-400/30 bg-amber-400/[0.07] app-pad-md text-[10px] leading-snug text-amber-200/90"
           role="status"
         >
           {listingsWarning}
@@ -92,7 +92,7 @@ export function SilverDashboard({ silver }: Props) {
       ) : null}
       {vnSilverMissing && worldOk ? (
         <p
-          className="rounded-lg border border-amber-500/35 bg-amber-950/35 app-pad-md text-[11px] leading-snug text-amber-100/95"
+          className="rounded-lg border border-amber-400/30 bg-amber-400/[0.07] app-pad-md text-[11px] leading-snug text-amber-200/90"
           role="status"
         >
           Không có niêm yết VN — chỉ hiển thị giá thế giới quy đổi.
@@ -230,19 +230,19 @@ export function SilverDashboard({ silver }: Props) {
                             </p>
                             <p className="truncate text-[10px] text-slate-500">{row.unit}</p>
                           </div>
-                          <span className="shrink-0 rounded bg-slate-800/80 px-1.5 py-0.5 font-mono text-[9px] text-slate-400">
+                          <span className="shrink-0 rounded bg-accent/[0.12] px-1.5 py-0.5 font-mono text-[9px] font-semibold text-accent">
                             {row.code}
                           </span>
                         </div>
-                        <div className="mt-2 flex justify-between gap-3 text-[11px]">
-                          <span className="text-slate-500">Mua</span>
-                          <span className="tabular-nums text-emerald-400/90">
+                        <div className="mt-2 flex items-baseline justify-between gap-3">
+                          <span className="text-[10px] text-slate-500">Mua</span>
+                          <span className="text-[12px] font-bold tabular-nums text-profit">
                             {fmtLevel(row.buy)}
                           </span>
                         </div>
-                        <div className="flex justify-between gap-3 text-[11px]">
-                          <span className="text-slate-500">Bán</span>
-                          <span className="tabular-nums font-semibold text-rose-300/90">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="text-[10px] text-slate-500">Bán</span>
+                          <span className="text-[12px] font-bold tabular-nums text-loss">
                             {row.sell != null ? fmtLevel(row.sell) : '—'}
                           </span>
                         </div>
