@@ -41,7 +41,10 @@ function MetalCurrencySeg() {
   )
 }
 
-/** Thanh so sánh tương đối VN vs TG (cùng đơn vị). TG xám trung tính, VN accent tab. */
+/**
+ * Thanh so sánh tương đối VN vs TG (cùng đơn vị). VN (accent tab) bên TRÁI,
+ * TG (xám trung tính) bên PHẢI — cùng phía với 2 card VN/TG phía trên (v1.8.4).
+ */
 function SpreadRelBar({
   vnNumeric,
   worldNumeric,
@@ -60,23 +63,23 @@ function SpreadRelBar({
     <div className="app-vstack-xs">
       <div
         className="flex h-1.5 w-full overflow-hidden rounded-full"
-        title={`${worldLabel} · ${vnLabel}`}
+        title={`${vnLabel} · ${worldLabel}`}
       >
-        <div
-          className="h-full bg-bx-neutral transition-[width] duration-500 ease-out"
-          style={{ width: `${tgShare}%` }}
-        />
         <div
           className="h-full bg-accent transition-[width] duration-500 ease-out"
           style={{ width: `${vnShare}%` }}
         />
+        <div
+          className="h-full bg-bx-neutral transition-[width] duration-500 ease-out"
+          style={{ width: `${tgShare}%` }}
+        />
       </div>
       <div className="flex justify-between text-[9px]">
-        <span className="text-bx-muted">
-          <span className="inline-block size-1.5 rounded-full bg-bx-neutral align-middle" /> TG
-        </span>
         <span className="text-accent">
-          VN <span className="inline-block size-1.5 rounded-full bg-accent align-middle" />
+          <span className="inline-block size-1.5 rounded-full bg-accent align-middle" /> VN
+        </span>
+        <span className="text-bx-muted">
+          TG <span className="inline-block size-1.5 rounded-full bg-bx-neutral align-middle" />
         </span>
       </div>
     </div>

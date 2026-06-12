@@ -43,7 +43,7 @@ Gom **nhiều nguồn giá** (WebSocket + REST) vào **một cửa sổ nhỏ**,
 | EN | VI |
 |----|-----|
 | **Realtime crypto** — USDT pairs, Spot (last) / Futures (mark), per-row or global market mode, drag-and-drop sort (`@dnd-kit`). | **Crypto realtime** — cặp USDT, Spot (last) / Futures (mark), SPOT/FUT theo dòng hoặc chung, kéo thả sắp xếp. |
-| **Gold valuation widget** — clean card UI focused on **VN vs world** and **spread** (premium/discount insight + optional bar). | **Vàng (widget định giá)** — thẻ tối giản tập trung **VN vs TG** và **spread** (insight + thanh so sánh). |
+| **Gold valuation widget** — clean card UI focused on **VN vs world** and **spread**; spread bar: **VN (tab accent) left / world (neutral gray) right**, aligned with the VN/world cards above (v1.8.4); title/spread value carry the tab accent, VND/USD toggle lives in-card only. | **Vàng (widget định giá)** — thẻ tập trung **VN vs TG** và **spread**; thanh spread: **VN (accent tab) trái / TG (xám) phải**, cùng phía với 2 card trên (v1.8.4); VND/USD chỉ còn trong card. |
 | **Silver valuation widget** — world XAG + VN listings (**Phú Quý**) when available; spread uses **VN mid vs world mid** (hook logic); detail section shows per-product listing cards. | **Bạc (widget định giá)** — XAG TG + niêm yết VN (**Phú Quý**) khi có; spread giữa VN vs giữa TG; chi tiết từng sản phẩm. |
 | **Domestic listings (responsive)** — long domestic lists are hidden on small widths; shown from larger breakpoints for readability. | **Niêm yết trong nước (responsive)** — danh sách dài ẩn ở màn hình nhỏ, chỉ hiện khi đủ rộng. |
 | **Formatting** — `FormatProvider`, `formatPrice` / `useFormatPrice`. | **Định dạng số** — `FormatProvider` + `useFormatPrice`. |
@@ -53,17 +53,20 @@ Gom **nhiều nguồn giá** (WebSocket + REST) vào **một cửa sổ nhỏ**,
 | **Price alerts (crypto)** — above/below targets per symbol + market (spot/futures); **local persistence**; in-app toast + optional sound + **Notification** API (permission-gated); quick-add from row bell; **AlertsPanel** + header badge. | **Cảnh báo giá** — Above/Below theo symbol + thị trường; lưu local; toast + âm + desktop notify (nếu được quyền); thêm nhanh từ chuông dòng. |
 | **Keyboard shortcuts** — `useKeyboardShortcuts` + **ShortcutsHelpModal** (`?`): tab switch, Portfolio, Alerts, search focus, refresh, Escape to close overlays. | **Phím tắt** — hook + modal `?`: đổi tab, Portfolio, Alerts, focus tìm kiếm, làm mới, Esc. |
 | **Loading / error UX** — **Skeleton** rows (watchlist, metals, portfolio) during hydrate/fetch; **ErrorState** / **ErrorIndicator** + **fetchWithRetry** for REST; **friendlyErrors** / **binanceErrorToVi** (Vietnamese); **AppErrorToasts** for sync/storage quota issues. | **UX tải & lỗi** — skeleton; thông báo lỗi + retry; copy tiếng Việt; toast lỗi (sync, storage). |
-| **Crypto watchlist chrome** — dark **Binance/Bybit-style** toolbar, column header, **ConnectionBanner**, **ConnectionStatusDot** (green/amber/red), **status bar** (prices / latency / funding when on Futures tab). | **Giao diện watchlist** — dark kiểu sàn, header cột, banner kết nối, chấm trạng thái, status bar. |
+| **Crypto watchlist chrome** — dark toolbar (market mode + **Compact/Full** + **refresh button**, same pipeline as `R` key), column header, **ConnectionBanner**, **status bar** with accent dots. | **Giao diện watchlist** — toolbar (mode + **Compact/Full** + **nút làm mới**, cùng pipeline phím `R`), header cột, banner kết nối, status bar dot accent. |
+| **Metal Accent identity (v1.8.x)** — each tab carries its metal accent (crypto **teal** `#2dd4a7`, gold `#f0b90b`, silver `#c0c7d1`) on chrome only (tabs, limelight, buttons, badges) — **never on price cells**; up/down colors are invariant. **Limelight tab bar**: light bar at the window top edge + gradient cone over the active tab, slides smoothly between tabs (`--app-accent` registered via `@property` → color transitions everywhere, including gradients). | **Identity "Metal Accent" (v1.8.x)** — mỗi tab mang màu kim loại riêng (teal / gold / silver) chỉ ở chrome (tab, limelight, nút, badge) — **không vào ô giá**; màu up/down bất biến. **Limelight tab bar**: thanh sáng sát mép trên + nón gradient trên tab active, trượt mượt khi đổi tab. |
+| **Two-tier toggles (v1.8.3)** — `SegmentedToggle`: tier `glass` (blur + accent gradient glider + glow) only for VND/USD (metal cards) and Compact/Full (crypto toolbar); tier `flat` (plain glider, no blur/glow) for market-mode toggles and per-row SPOT/FUT — same geometry and slide timing as limelight. | **Toggle 2 cấp (v1.8.3)** — cấp glass (blur + glider gradient accent + glow) chỉ cho VND/USD và Compact/Full; cấp flat (glider phẳng) cho toggle market và SPOT/FUT theo dòng — cùng nhịp trượt với limelight. |
+| **Refresh loading pattern (v1.8.3)** — shared `RefreshButton`: idle (icon + label) → loading (transparent label keeps width, context-accent spinner, disabled) → ~1s green check flash, no success toast. Used by crypto toolbar, metal cards, domestic table, StaleBanner, Portfolio Sync. | **Pattern nút làm mới (v1.8.3)** — `RefreshButton` chung: loading (label trong suốt giữ width, spinner accent, disabled) → flash check xanh ~1s, không toast. Dùng ở toolbar crypto, card kim loại, bảng nội địa, StaleBanner, Sync Portfolio. |
 | **Sparkline (crypto rows)** — SVG mini chart per symbol (Klines REST via `useSparklineData`); green up / red down / slate flat. | **Sparkline (dòng crypto)** — biểu đồ mini SVG từ Klines REST; xanh lên / đỏ xuống. |
 | **Price movement strip (metals)** — short-history mini sparkline + absolute/% change + **VolatilityBadge** (Low/Med/High) on gold/silver cards; uses `usePriceMovement` + `priceMovementMath`. | **Dải biến động giá (kim loại)** — sparkline ngắn hạn + % + badge biến động; dùng `usePriceMovement`. |
 | **Stale / offline banner (metals)** — `StaleBanner` warns when browser is offline or displaying cached data, shows cache timestamp + manual refresh button; driven by `useOnlineStatus`. | **Banner stale/offline (kim loại)** — cảnh báo ngoại tuyến hoặc dữ liệu cache; nút Làm mới. |
 | **Funding rate** — current rate + next funding time in watchlist status bar (Futures); per-position **funding PnL** in Portfolio via `fundingCalculator`. | **Funding rate** — rate + thời gian kế tiếp trên status bar; PnL funding theo vị thế trong Portfolio. |
-| **Alert trigger toast** — dedicated floating toast stack (`AlertToast`) for fired price alerts (auto-dismiss ~9s), separate from error toasts. | **Toast cảnh báo** — toast nổi riêng cho alert kích hoạt (tự đóng ~9s). |
+| **Toasts (unified visual, v1.8.3)** — `AlertToast` (fired alerts, ~9s) and `AppErrorToasts` (~5s) share one `ToastShell` visual: dark surface, 3px type-colored left bar (success green / error red / warning gold / info-alert **teal**, no blue), icon, X close; slide-in from right, stacked toasts shrink/fade behind, hover pauses auto-dismiss. | **Toast (visual hợp nhất, v1.8.3)** — `AlertToast` + `AppErrorToasts` dùng chung `ToastShell`: border-left 3px theo type (alert = teal, không xanh dương), icon, nút X; slide-in, stack thu nhỏ/mờ dần, hover dừng đếm giờ. |
 | **Scroll UX** — `index.css`: WebKit/Firefox scrollbar overlay-style (dim until interaction). | **Thanh cuộn** — ẩn / hé hiện khi tương tác (Chromium/Electron; Firefox ẩn). |
 | **Metal market utility** — `getMetalMarketStatus` (OTC-style weekend gap Fri 22:00–Sun 22:00 UTC); ready for gold/silver status UI. | **Helper phiên kim loại** — `getMetalMarketStatus` (model OTC cuối tuần UTC); sẵn cho UI Vàng/Bạc. |
-| **Electron** — always-on-top, drag regions; **version label** shown near window controls, read from `package.json` at build time via Vite `define`. | **Electron** — luôn trên cùng, vùng kéo cửa sổ; **nhãn version** nhỏ cạnh nút điều khiển, đọc từ `package.json` lúc build. |
-| **macOS distribution (.dmg)** — `electron-builder` (`npm run dist:mac`): Vite build → asar bundle → DMG in `release/`; unsigned (Gatekeeper: right-click → Open on first launch). | **Đóng gói macOS (.dmg)** — `electron-builder` (`npm run dist:mac`): build Vite → bundle asar → DMG trong `release/`; không ký số (Gatekeeper: chuột phải → Open lần đầu). |
-| **Interaction system (subtle)** — low-contrast row hover, pointer/brightness on prices, subtle focus rings, directional price flash (up/down), small pulse on ladder-fill target inputs. | **Hệ tương tác (tinh tế)** — hover nhẹ, giá có pointer/brightness, focus ring mờ, flash giá lên/xuống, pulse nhẹ khi click ladder điền ô mục tiêu. |
+| **Electron** — always-on-top, drag regions; **window state remembered** (size + position in `userData/window-state.json`, validated against current displays — lost monitor → reset to bottom-right of primary; default **440×640**); **version label** read from `package.json` at build time via Vite `define`. | **Electron** — luôn trên cùng, vùng kéo; **nhớ size + vị trí cửa sổ** (validate với màn hình hiện có, mất màn cũ → về bottom-right màn chính; default **440×640**); nhãn version đọc từ `package.json` lúc build. |
+| **macOS distribution (.dmg)** — `electron-builder` (`npm run dist:mac`): Vite build → asar bundle → DMG in `release/`; unsigned (Gatekeeper: right-click → Open on first launch). **App icon** (3 coins: teal ₿ / gold Au / silver Ag — mirrors the 3 tabs): sources `build/icon.svg` + simplified `build/icon-small.svg` for 16/32px, packed `build/icon.icns`. | **Đóng gói macOS (.dmg)** — `electron-builder`; **icon app** (3 đồng xu teal/gold/silver = 3 tab): nguồn `build/icon.svg` + bản rút gọn cho 16/32px, đóng gói `build/icon.icns`. |
+| **Interaction system (subtle)** — low-contrast row hover, pointer/brightness on prices, subtle focus rings, directional price flash (up/down; neutral flash is white-dim — brand accent never enters price cells), input pulse follows tab accent. | **Hệ tương tác (tinh tế)** — hover nhẹ, focus ring mờ, flash giá lên/xuống (flash neutral màu trắng mờ — accent không vào ô giá), pulse input theo accent tab. |
 
 **EN — Not in scope yet:** server-side or mobile **push** delivery, automated trading signals, or advanced portfolio analytics (possible future work).  
 **VI — Chưa trong scope:** **push** qua server/mobile, tín hiệu giao dịch tự động, analytics nâng cao (có thể mở rộng sau).
@@ -134,6 +137,9 @@ flowchart LR
 - **Gold / Silver:** `fetchGoldWithFallback`, `fetchUsdVnd`, (`fetchSilverWorldWithFallback` for silver) → `useGoldPrice` / `useSilverPrice` / `useVnMetalPrices` → dashboards. Silver fetches `fetchVnSilverPrices` (Phú Quý) in the same `Promise.all` as world spot + FX; VN listings shown in `SilverDashboard`. `StaleBanner` (driven by `useOnlineStatus`) warns when data is from cache or browser is offline. `PriceMovementStrip` (`usePriceMovement` + `priceMovementMath`) shows short-term sparkline + % change + volatility badge on each metal card. REST errors use `fetchResilience` (backoff) + `fetchErrors` (classify).  
   **Vàng / Bạc:** fetch → hook → dashboard. Bạc: `fetchVnSilverPrices` (Phú Quý) song song với spot TG + FX trong `Promise.all`; niêm yết VN hiện trong `SilverDashboard`. `StaleBanner` cảnh báo khi offline/cache. `PriceMovementStrip` hiện sparkline ngắn hạn + % + badge biến động. Lỗi REST dùng retry backoff + phân loại lỗi.
 
+- **UI system (Metal Accent, v1.8.x):** app shell sets `data-accent={tab}`; `--app-accent` is registered via CSS `@property` so accent transitions smoothly everywhere it's used (including gradients: limelight cone, glass glider). `--color-accent: var(--app-accent)` must be **redeclared on `[data-accent]`** (var() in a custom property is substituted at the declaring element — declaring only on `:root` freezes the initial teal). Shared controls: `SegmentedToggle` (glass/flat tiers), `RefreshButton` (loading/done pattern), `ToastShell` (4 toast types). All effects are plain CSS — no new dependencies.  
+  **Hệ UI (Metal Accent, v1.8.x):** shell đặt `data-accent={tab}`; `--app-accent` đăng ký qua `@property` → accent transition mượt cả trong gradient. `--color-accent` phải redeclare trên `[data-accent]` (var() trong custom property substitute tại element khai báo). Control dùng chung: `SegmentedToggle`, `RefreshButton`, `ToastShell`. Toàn bộ bằng CSS thuần — không dependency mới.
+
 ---
 
 ## 5. Key Files / Modules | File và module quan trọng
@@ -141,8 +147,12 @@ flowchart LR
 | Path | EN (role) | VI (vai trò) |
 |------|-----------|--------------|
 | `tailwind.config.js` | Tailwind design tokens (typography/colors/radius/shadow) | Token thiết kế Tailwind (chữ/màu/radius/shadow) |
-| `electron/main.cjs` | Electron window, preload, always-on-top; production renderer loaded via `app.getAppPath()` (asar-safe) | Cửa sổ Electron, preload, always-on-top; renderer production dùng `app.getAppPath()` (an toàn với asar) |
-| `src/App.tsx` | Tabs Crypto / Gold / Silver, format shell | Tab Crypto / Vàng / Bạc, khung format |
+| `electron/main.cjs` | Electron window, preload, always-on-top; window state persistence (`userData/window-state.json`, display-validated, default 440×640); production renderer via `app.getAppPath()` (asar-safe) | Cửa sổ Electron, preload, always-on-top; nhớ size/vị trí (validate màn hình, default 440×640); renderer production dùng `app.getAppPath()` |
+| `build/icon.svg` / `icon-small.svg` / `icon.icns` / `icon.png` | macOS app icon sources (full + simplified for 16/32px) and packed assets; dev Dock icon | Nguồn icon app (bản full + rút gọn size nhỏ) + asset đóng gói; icon Dock dev |
+| `src/App.tsx` | Tabs + limelight measurement, `data-accent` shell, floating Alerts/Portfolio chrome | Tab + đo limelight, shell `data-accent`, chrome nút nổi |
+| `src/components/SegmentedToggle.tsx` | Two-tier segmented toggle (glass / flat glider) | Toggle 2 cấp (glider glass / phẳng) |
+| `src/components/RefreshButton.tsx` | Shared refresh loading/done-flash pattern | Pattern nút làm mới chung |
+| `src/components/ToastShell.tsx` | Shared toast visual (4 types, left bar + icon + X) | Visual toast chung (4 type) |
 | `src/hooks/useRealtimePrice.ts` | Binance WS, connection state, prices | WebSocket Binance, trạng thái kết nối, giá |
 | `src/hooks/useGoldPrice.ts` | Gold polling + FX, sell-vs-sell spread | Polling vàng + FX, spread bán VN vs TG |
 | `src/hooks/useSilverPrice.ts` | Silver world + VN listing, mid spread | Bạc TG + niêm yết VN, spread giữa |
@@ -164,7 +174,7 @@ flowchart LR
 | `src/utils/futuresPriceLadder.ts` | Adaptive tick ladder around mark | Bậc giá quanh mark |
 | `src/utils/metalMarketStatus.ts` | OTC-style open / closed / opening-soon (weekend UTC) | Trạng thái phiên spot kim loại (helper) |
 | `src/utils/tradingSession.ts` | Crypto UTC session bands (Asia/EU/US) | Phiên crypto theo giờ UTC |
-| `src/index.css` | Tailwind import + theme vars, drag regions, scrollbar overlay, shared interaction utilities | CSS global + theme, scrollbar, utility tương tác |
+| `src/index.css` | Tailwind import + theme vars (incl. accent tokens `--color-accent-*`, registered `--app-accent`, `--color-bx-neutral`), `[data-accent]` switching, limelight, glider/spinner/toast keyframes, drag regions, scrollbar overlay | CSS global: token accent + `@property`, limelight, glider/spinner/toast, drag region, scrollbar |
 | `src/providers/FormatProvider.tsx` | Display format context | Context định dạng hiển thị |
 | `src/hooks/useKeyboardShortcuts.ts` | Global shortcuts; dispatches tab/portfolio/alerts/refresh events | Phím tắt toàn cục |
 | `src/components/ShortcutsHelpModal.tsx` | Shortcut reference (`?`) | Modal trợ giúp phím tắt |
@@ -174,7 +184,7 @@ flowchart LR
 | `src/components/Skeleton.tsx`, `WatchlistSkeleton.tsx`, `PortfolioSkeleton.tsx`, `CardSkeleton.tsx` | Shimmer placeholders while loading | Skeleton / shimmer |
 | `src/components/ConnectionBanner.tsx` | WS disconnect / reconnect / retry affordance | Banner kết nối |
 | `src/components/ErrorState.tsx` / `ErrorIndicator.tsx` | Inline friendly errors + retry | Trạng thái lỗi + retry |
-| `src/components/AppErrorToasts.tsx` | Stacked error toasts (e.g. Binance sync, quota) | Toast lỗi stack |
+| `src/components/AppErrorToasts.tsx` | Error toast stack on `ToastShell` (overlap stack, hover-pause with remaining time) | Toast lỗi (stack overlap, hover dừng đếm giờ) |
 | `src/utils/appToast.ts` | `showErrorToast` helper | Helper hiện toast lỗi |
 | `src/utils/friendlyErrors.ts` / `binanceErrorToVi` | User-facing VN copy for HTTP/API errors | Lỗi thân thiện tiếng Việt |
 | `src/utils/fetchWithRetry.ts` | Bounded retries for REST fetches | Fetch có retry |
@@ -189,10 +199,8 @@ flowchart LR
 | `src/utils/priceMovementMath.ts` | Trend detection, coefficient of variation, volatility buckets | Toán trend + biến động |
 | `src/components/StaleBanner.tsx` | Offline / stale-data warning banner (metals) | Banner stale/offline |
 | `src/hooks/useOnlineStatus.ts` | Browser `navigator.onLine` reactive hook | Hook online/offline trình duyệt |
-| `src/components/AlertToast.tsx` | Floating toast stack for fired price alerts | Toast cảnh báo giá |
-| `src/components/ConnectionStatusDot.tsx` | Green/amber/red WS health dot in header | Chấm trạng thái kết nối |
-| `src/components/SessionBar.tsx` | UTC session bar (Asia/EU/US) | Thanh phiên giao dịch UTC |
-| `src/components/FormatControls.tsx` | Currency/mode segmented toggle | Nút chuyển đổi đơn vị/chế độ |
+| `src/components/AlertToast.tsx` | Fired-alert toast stack on `ToastShell` (info/teal type) | Toast cảnh báo giá (type teal) |
+| `src/components/SessionBar.tsx` | UTC session bar (Asia/EU/US), active pill carries tab accent | Thanh phiên UTC, pill active mang accent |
 | `src/components/AddPositionForm.tsx` | Manual position entry form (Portfolio) | Form thêm vị thế thủ công |
 | `src/api/fundingRate.ts` | Binance `premiumIndex` + `fundingRate` REST client | Client REST funding rate |
 | `src/utils/fundingCalculator.ts` | Per-position funding PnL from history + current rate | Tính PnL funding theo vị thế |
@@ -309,6 +317,9 @@ flowchart LR
 | **VN silver** — one domestic source (Phú Quý, `giabac.phuquygroup.vn`); if fetch/parse fails the VN listing section is hidden while world spot remains visible. | **Bạc VN** — một nguồn nội địa (Phú Quý); nếu fetch/parse thất bại thì ẩn niêm yết VN, vẫn hiện spot TG. |
 | **Futures Simulator** uses simplified formulas / liq approximation; not a substitute for exchange risk tools. | **Simulator** dùng công thức đơn giản; không thay công cụ quản trị rủi ro trên sàn. |
 | **`getMetalMarketStatus`** models generic OTC metal hours; broker feeds may differ. | **`getMetalMarketStatus`** là model OTC tổng quát; giờ thật có thể khác từng broker. |
+| **Window state** lives in `userData/window-state.json` (Electron); delete it to reset to the 440×640 bottom-right default. | **Window state** nằm ở `userData/window-state.json`; xoá file để về default 440×640 bottom-right. |
+| **Glass (backdrop-filter)** is deliberately limited to 2 toggle instances (VND/USD, Compact/Full); per-row controls use the flat tier to avoid N× blur cost in long watchlists. | **Glass (backdrop-filter)** chủ ý chỉ ở 2 toggle; control theo dòng dùng cấp phẳng để tránh chi phí blur nhân theo N dòng. |
+| **`ConnectionStatusDot.tsx`** is currently unreferenced (header dot removed in v1.8.2) — kept in repo, candidate for dead-code cleanup. | **`ConnectionStatusDot.tsx`** hiện không còn được dùng (dot header gỡ ở v1.8.2) — ứng viên dọn dead code. |
 
 ---
 
@@ -318,4 +329,4 @@ flowchart LR
 
 ---
 
-*Version 1.7.1 — 2026-06-10*
+*Version 1.8.4 — 2026-06-12*

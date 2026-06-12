@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.8.4] - 2026-06-12
+### Changed
+- **Thanh spread (tab Vàng + Bạc) đảo vị trí VN/TG** (`SpreadRelBar` trong `ValuationWidget.tsx`): VN (accent tab) chuyển sang đầu TRÁI, TG (xám `bx-neutral`) sang đầu PHẢI — cùng phía với 2 card Việt Nam / Thế giới phía trên, mắt không phải đảo chiều khi đọc từ card xuống bar. Màu đi theo nhãn, không theo vị trí; tỷ lệ share, dòng "VN cao hơn/thấp hơn TG", nút Phụ phí, layout khối spread giữ nguyên
+
 ## [1.8.3] - 2026-06-12
 ### Added — UI Overhaul Phase 4/4: Controls & Feedback (không dependency mới)
 - **`SegmentedToggle`** (`src/components/SegmentedToggle.tsx`): toggle 2 cấp, glider trượt bằng transform, cùng timing với limelight (300ms cubic-bezier(0.3,0.9,0.3,1), không bounce)
