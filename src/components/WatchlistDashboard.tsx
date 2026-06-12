@@ -40,7 +40,10 @@ import {
 } from '../hooks/useRealtimePrice'
 import { useSparklineData } from '../hooks/useSparklineData'
 import { useFormat } from '../providers/FormatProvider'
+import type { FormatMode } from '../utils/formatPrice'
 import { normalizeCryptoPairInput } from '../utils/cryptoPair'
+import { SegmentedToggle } from './SegmentedToggle'
+import { RefreshButton } from './RefreshButton'
 import { FuturesSimulatorPanel } from './FuturesSimulatorPanel'
 import { SessionBar } from './SessionBar'
 import { Sparkline } from './Sparkline'
@@ -321,7 +324,12 @@ function clampFloatPos(
   }
 }
 
-function WatchlistColumnHeader() {
+/** perCoin mode chừa chỗ cho mini toggle SPOT/FUT — global chỉ cần nút X */
+function actionsColWidth(perCoin: boolean): string {
+  return perCoin ? 'w-[120px]' : 'w-9'
+}
+
+function WatchlistColumnHeader({ perCoin }: { perCoin: boolean }) {
   const cell = 'text-[10px] font-medium uppercase tracking-[0.06em] text-bx-muted'
   return (
     <div
@@ -340,7 +348,7 @@ function WatchlistColumnHeader() {
         </div>
       </div>
       <div className="w-8 shrink-0" aria-hidden />
-      <div className="w-[92px] shrink-0" aria-hidden />
+      <div className={`${actionsColWidth(perCoin)} shrink-0`} aria-hidden />
     </div>
   )
 }
@@ -431,9 +439,6 @@ const badgeBase =
 
 const iconBtnClass =
   'app-no-drag inline-flex size-7 items-center justify-center text-bx-muted transition-colors duration-150 hover:text-bx-secondary'
-
-const togglePillBase =
-  'app-no-drag inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium transition-colors duration-150'
 
 function hasEnabledAlertForSymbol(symbolUpper: string): boolean {
   try {
@@ -555,24 +560,22 @@ const WatchlistRow = memo(function WatchlistRow({
     )
 
   const actionsCol = (
-    <div className="flex w-[92px] shrink-0 items-center justify-end gap-2 self-center">
+    <div className={`flex ${actionsColWidth(mode === 'perCoin')} shrink-0 items-center justify-end gap-2 self-center`}>
       <div className="flex items-center justify-end gap-2 opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-hover:pointer-events-auto">
         {mode === 'perCoin' ? (
-          <button
-            type="button"
-            className={`${togglePillBase} ${
-              market === 'spot'
-                ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
-                : 'bg-slate-600/40 text-slate-300 hover:bg-slate-600/60'
-            }`}
-            title="Đổi Spot / Futures cho dòng này"
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggleRowMarket(item.id)
-            }}
-          >
-            {market === 'spot' ? 'FUT' : 'SPOT'}
-          </button>
+          <div onClick={(e) => e.stopPropagation()}>
+            <SegmentedToggle<Market>
+              tier="flat"
+              dense
+              options={[
+                { value: 'spot', label: 'SPOT' },
+                { value: 'futures', label: 'FUT' },
+              ]}
+              value={market}
+              onChange={() => onToggleRowMarket(item.id)}
+              ariaLabel={`Đổi Spot / Futures cho ${display}`}
+            />
+          </div>
         ) : null}
         <button
           type="button"
@@ -889,15 +892,18 @@ export function WatchlistDashboard({
     }
   }, [items, marketMode, globalMarket, watchlistReady])
 
+  /** Nút làm mới toolbar — cùng pipeline với phím R (refreshNonce từ App) */
+  const [localRefreshNonce, setLocalRefreshNonce] = useState(0)
+
   /** Thứ tự mảng chỉ ảnh hưởng UI; hook gom symbol theo tập đã sort — không reconnect WS khi reorder */
   const watchEntries: WatchPriceEntry[] = useMemo(
     () =>
       items.map((i) => ({
-        key: `${i.id}|${refreshNonce}`,
+        key: `${i.id}|${refreshNonce + localRefreshNonce}`,
         symbol: normalizeCryptoPairInput(i.symbol) || i.symbol.trim().toLowerCase(),
         market: effectiveMarket(i, marketMode, globalMarket),
       })),
-    [items, marketMode, globalMarket, refreshNonce],
+    [items, marketMode, globalMarket, refreshNonce, localRefreshNonce],
   )
 
   const { prices, loading, connectionStatus, retryConnection, spot, futures } =
@@ -1208,13 +1214,6 @@ export function WatchlistDashboard({
     }
   }
 
-  const segWrap =
-    'inline-flex shrink-0 flex-wrap rounded-md border border-bx-border-medium bg-bx-input p-0.5 max-[299px]:p-px'
-  const segBtn =
-    'shrink-0 rounded px-2 py-0.5 text-[11px] font-medium transition-colors duration-150 max-[299px]:px-1.5 max-[299px]:py-0.5 max-[299px]:text-[10px]'
-  const segBtnOn = 'bg-bx-border-medium text-bx-primary'
-  const segBtnOff = 'text-bx-secondary hover:text-bx-primary'
-
   return (
     <div
       ref={rootRef}
@@ -1243,79 +1242,56 @@ export function WatchlistDashboard({
             className="flex flex-col gap-2 max-[299px]:gap-1.5"
           >
             <div className="flex flex-wrap items-center gap-2 max-[299px]:gap-1.5">
-              <div className={segWrap} role="group" aria-label="Phạm vi danh sách">
-                <button
-                  type="button"
-                  className={`${segBtn} ${marketMode === 'global' ? segBtnOn : segBtnOff}`}
-                  title="Áp dụng Spot/Futures cho cả danh sách"
-                  onClick={() => setMarketMode('global')}
-                >
-                  Chung
-                </button>
-                <button
-                  type="button"
-                  className={`${segBtn} ${marketMode === 'perCoin' ? segBtnOn : segBtnOff}`}
-                  title="Mỗi coin chọn Spot hoặc Futures riêng"
-                  onClick={() => setMarketMode('perCoin')}
-                >
-                  Từng coin
-                </button>
-              </div>
+              <SegmentedToggle<MarketMode>
+                tier="flat"
+                options={[
+                  { value: 'global', label: 'Chung', title: 'Áp dụng Spot/Futures cho cả danh sách' },
+                  { value: 'perCoin', label: 'Từng coin', title: 'Mỗi coin chọn Spot hoặc Futures riêng' },
+                ]}
+                value={marketMode}
+                onChange={setMarketMode}
+                ariaLabel="Phạm vi danh sách"
+              />
               {marketMode === 'global' ? (
-                <div className={segWrap} role="group" aria-label="Thị trường áp dụng">
-                  <button
-                    type="button"
-                    className={`${segBtn} ${globalMarket === 'spot' ? segBtnOn : segBtnOff}`}
-                    onClick={() => setGlobalMarket('spot')}
-                  >
-                    Spot
-                  </button>
-                  <button
-                    type="button"
-                    className={`${segBtn} ${globalMarket === 'futures' ? segBtnOn : segBtnOff}`}
-                    title="Giá mark futures"
-                    onClick={() => setGlobalMarket('futures')}
-                  >
-                    Futures
-                  </button>
-                </div>
+                <SegmentedToggle<Market>
+                  tier="flat"
+                  options={[
+                    { value: 'spot', label: 'Spot' },
+                    { value: 'futures', label: 'Futures', title: 'Giá mark futures' },
+                  ]}
+                  value={globalMarket}
+                  onChange={setGlobalMarket}
+                  ariaLabel="Thị trường áp dụng"
+                />
               ) : (
-                <div className={segWrap} role="group" aria-label="Loại cho coin mới">
-                  <button
-                    type="button"
-                    className={`${segBtn} ${draftMarket === 'spot' ? segBtnOn : segBtnOff}`}
-                    onClick={() => setDraftMarket('spot')}
-                  >
-                    Spot
-                  </button>
-                  <button
-                    type="button"
-                    className={`${segBtn} ${draftMarket === 'futures' ? segBtnOn : segBtnOff}`}
-                    title="Giá mark futures"
-                    onClick={() => setDraftMarket('futures')}
-                  >
-                    Futures
-                  </button>
-                </div>
+                <SegmentedToggle<Market>
+                  tier="flat"
+                  options={[
+                    { value: 'spot', label: 'Spot' },
+                    { value: 'futures', label: 'Futures', title: 'Giá mark futures' },
+                  ]}
+                  value={draftMarket}
+                  onChange={setDraftMarket}
+                  ariaLabel="Loại cho coin mới"
+                />
               )}
-              <div className={segWrap} role="group" aria-label="Định dạng số">
-                <button
-                  type="button"
-                  className={`${segBtn} ${formatMode === 'compact' ? segBtnOn : segBtnOff}`}
-                  title="Số rút gọn (k · M · B)"
-                  onClick={() => setFormatMode('compact')}
-                >
-                  Compact
-                </button>
-                <button
-                  type="button"
-                  className={`${segBtn} ${formatMode === 'full' ? segBtnOn : segBtnOff}`}
-                  title="Số đầy đủ"
-                  onClick={() => setFormatMode('full')}
-                >
-                  Full
-                </button>
-              </div>
+              <SegmentedToggle<FormatMode>
+                tier="glass"
+                options={[
+                  { value: 'compact', label: 'Compact', title: 'Số rút gọn (k · M · B)' },
+                  { value: 'full', label: 'Full', title: 'Số đầy đủ' },
+                ]}
+                value={formatMode}
+                onChange={setFormatMode}
+                ariaLabel="Định dạng số"
+              />
+              <RefreshButton
+                onClick={() => setLocalRefreshNonce((n) => n + 1)}
+                loading={loading && watchEntries.length > 0}
+                className="ml-auto rounded-md border border-bx-border-medium bg-bx-input px-2 py-1 text-[11px] text-bx-secondary transition-colors hover:text-bx-primary"
+                title="Làm mới dữ liệu (R)"
+                aria-label="Làm mới dữ liệu"
+              />
             </div>
 
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -1384,7 +1360,7 @@ export function WatchlistDashboard({
             onDragEnd={handleDragEnd}
           >
             <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-              <WatchlistColumnHeader />
+              <WatchlistColumnHeader perCoin={marketMode === 'perCoin'} />
               {!watchlistReady ? (
                 <WatchlistSkeleton count={6} />
               ) : (

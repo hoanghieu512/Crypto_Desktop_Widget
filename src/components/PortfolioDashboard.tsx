@@ -30,6 +30,7 @@ import { useFundingData } from '../hooks/useFundingData'
 import { adjustedMargin } from '../utils/fundingCalculator'
 import { PortfolioSkeleton } from './PortfolioSkeleton'
 import { ErrorState } from './ErrorState'
+import { RefreshButton } from './RefreshButton'
 import { binanceErrorToVi } from '../utils/friendlyErrors'
 
 function fmtSignedPct(p: number): string {
@@ -257,18 +258,25 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              className="app-no-drag rounded-lg border border-bx-border-medium bg-bx-input px-3 py-2 text-label font-semibold text-bx-secondary hover:text-bx-primary"
-              onClick={() => {
-                if (!bx.state.hasCredentials) setSettingsOpen(true)
-                else void bx.syncNow()
-              }}
-              title={bx.state.hasCredentials ? 'Refresh synced positions' : 'Connect Binance'}
-              disabled={bx.state.syncing}
-            >
-              {bx.state.hasCredentials ? (bx.state.syncing ? 'Sync…' : 'Sync') : 'Connect'}
-            </button>
+            {bx.state.hasCredentials ? (
+              <RefreshButton
+                onClick={() => void bx.syncNow()}
+                loading={bx.state.syncing}
+                className="rounded-lg border border-bx-border-medium bg-bx-input px-3 py-2 text-label font-semibold text-bx-secondary hover:text-bx-primary"
+                title="Refresh synced positions"
+              >
+                Sync
+              </RefreshButton>
+            ) : (
+              <button
+                type="button"
+                className="app-no-drag rounded-lg border border-bx-border-medium bg-bx-input px-3 py-2 text-label font-semibold text-bx-secondary hover:text-bx-primary"
+                onClick={() => setSettingsOpen(true)}
+                title="Connect Binance"
+              >
+                Connect
+              </button>
+            )}
             {bx.state.hasCredentials ? (
               <div className="hidden min-[361px]:flex items-center gap-2 pr-1">
                 <span

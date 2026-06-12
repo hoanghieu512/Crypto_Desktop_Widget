@@ -185,6 +185,7 @@ export function SilverDashboard({ silver }: Props) {
             format={fmtLevel}
             formatSigned={fmtSignedLevel}
             loading={Boolean(loading && !ready && !worldOk)}
+            refreshing={isRefreshing}
             alert={hasAlert ? alert : null}
             footer={
               ready && vnLabel ? (

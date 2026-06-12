@@ -101,6 +101,75 @@
 
 @layer utilities {
   /*
+   * Phase 4 — Controls & Feedback.
+   * --app-ease: cùng timing với limelight — mọi glider trượt đồng nhịp, không bounce.
+   */
+  /* inset 2px = p-0.5 của container — glider khớp đúng cột button
+     (absolute không tự tính padding); translateX(100%) = đúng 1 bước cột */
+  .app-seg-glider {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    left: 2px;
+    pointer-events: none;
+    transition: transform 300ms cubic-bezier(0.3, 0.9, 0.3, 1);
+    will-change: transform;
+  }
+  /* Cấp 1 — full glass: gradient accent + viền sáng + glow mềm */
+  .app-seg-glider-glass {
+    border-radius: 8px;
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--app-accent) 38%, transparent),
+      color-mix(in srgb, var(--app-accent) 88%, transparent)
+    );
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.22),
+      0 0 12px color-mix(in srgb, var(--app-accent) 38%, transparent),
+      0 1px 3px rgb(0 0 0 / 0.35);
+  }
+  /* Cấp 2 — glider phẳng: không blur, không glow (an toàn khi lặp N dòng) */
+  .app-seg-glider-flat {
+    border-radius: 6px;
+    background: var(--color-bx-border-medium);
+  }
+
+  /* Spinner cho nút làm mới — accent theo ngữ cảnh (--app-accent) */
+  .app-spinner {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    border-radius: 9999px;
+    border: 2px solid var(--color-bx-border-medium);
+    border-top-color: var(--app-accent);
+    animation: app-spin 0.7s linear infinite;
+  }
+  @keyframes app-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  /* Flash viền xanh khi refresh xong (~1s, do RefreshButton điều khiển) */
+  .app-refresh-done {
+    box-shadow: inset 0 0 0 1px rgb(38 161 123 / 0.6);
+  }
+
+  /* Toast: vào bằng slide nhẹ từ cạnh phải + fade */
+  @keyframes app-toast-in {
+    from {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  .app-toast-enter {
+    animation: app-toast-in 220ms cubic-bezier(0.3, 0.9, 0.3, 1);
+  }
+
+  /*
    * Limelight (Phase 2) — nguồn sáng duy nhất của shell, thay glow toàn đỉnh.
    * Element absolute trong nav, JS đặt width + translateX theo tab active;
    * transition trượt mượt. ::before = thanh sáng sát mép trên cửa sổ

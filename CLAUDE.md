@@ -227,4 +227,4 @@ Sau mỗi lần implement xong, chạy theo thứ tự:
 
 Bước 5–7 chỉ cần làm khi user yêu cầu "update docs/readme/overview" sau khi code xong, hoặc khi thay đổi ảnh hưởng đến flow được mô tả trong các file đó.
 
-## Current version: 1.8.2
+## Current version: 1.8.3

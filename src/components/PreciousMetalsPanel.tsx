@@ -9,6 +9,7 @@ import {
 } from '../utils/goldDisplay'
 import { AssetCard } from './AssetCard'
 import { GoldDashboard } from './GoldDashboard'
+import { RefreshButton } from './RefreshButton'
 
 function changeClass(delta: number): string {
   if (delta > 0) return 'text-emerald-400'
@@ -63,15 +64,15 @@ export function PreciousMetalsPanel({ active }: Props) {
             </a>
             <span className="hidden min-[361px]:inline"> · làm mới ~60s</span>
           </span>
-          <button
-            type="button"
+          <RefreshButton
             title="Làm mới bảng giá"
             onClick={() => void refresh()}
-            className="app-no-drag shrink-0 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] text-slate-200 hover:border-violet-500/50 min-[361px]:text-xs"
+            loading={loading}
+            className="shrink-0 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] text-slate-200 hover:border-slate-500 min-[361px]:text-xs"
           >
             <span className="min-[361px]:hidden">Làm mới</span>
             <span className="hidden min-[361px]:inline">Làm mới bảng</span>
-          </button>
+          </RefreshButton>
         </div>
 
         {updatedAt ? (

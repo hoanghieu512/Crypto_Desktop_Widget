@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { RefreshButton } from './RefreshButton'
 
 export type StaleBannerProps = {
   /** Hiện cảnh báo (ngoại_tuyến hoặc dữ liệu cache) */
@@ -59,13 +60,13 @@ export const StaleBanner = memo(function StaleBanner({
         {text}
       </span>
       {onManualRefresh ? (
-        <button
-          type="button"
-          className="app-no-drag shrink-0 rounded-md border border-amber-400/40 px-2 py-0.5 text-meta font-medium text-amber-200 transition-colors hover:bg-amber-400/10"
+        <RefreshButton
           onClick={() => onManualRefresh()}
+          loading={showSpinner}
+          className="shrink-0 rounded-md border border-amber-400/40 px-2 py-0.5 text-meta font-medium text-amber-200 transition-colors hover:bg-amber-400/10"
         >
           Làm mới
-        </button>
+        </RefreshButton>
       ) : null}
     </div>
   )

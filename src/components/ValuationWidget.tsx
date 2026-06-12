@@ -3,6 +3,8 @@ import { useFormat } from '../providers/FormatProvider'
 import type { SpreadInsight } from '../utils/goldPrice'
 import type { FormatCurrency } from '../utils/formatPrice'
 import { spreadInsightLabelVi, spreadInsightShortLabelVi } from '../utils/goldPrice'
+import { SegmentedToggle } from './SegmentedToggle'
+import { RefreshButton } from './RefreshButton'
 
 function fmtSignedPct(p: number): string {
   if (!Number.isFinite(p)) return '—'
@@ -29,26 +31,13 @@ const CURRENCIES: readonly { id: FormatCurrency; label: string }[] = [
 function MetalCurrencySeg() {
   const { currency, setCurrency } = useFormat()
   return (
-    <div
-      className="inline-flex shrink-0 rounded-lg border border-white/10 bg-slate-900/80 p-0.5"
-      role="group"
-      aria-label="Tiền tệ hiển thị"
-    >
-      {CURRENCIES.map((o) => (
-        <button
-          key={o.id}
-          type="button"
-          onClick={() => setCurrency(o.id)}
-          className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold transition-colors ${
-            currency === o.id
-              ? 'bg-white/10 text-white'
-              : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
+    <SegmentedToggle<FormatCurrency>
+      tier="glass"
+      options={CURRENCIES.map((o) => ({ value: o.id, label: o.label }))}
+      value={currency}
+      onChange={setCurrency}
+      ariaLabel="Tiền tệ hiển thị"
+    />
   )
 }
 
@@ -122,6 +111,8 @@ export type ValuationWidgetProps = {
   format: (n: number) => string
   formatSigned: (n: number) => string
   loading?: boolean
+  /** Đang refresh thủ công/auto — RefreshButton hiện spinner */
+  refreshing?: boolean
   alert?: ReactNode
   footer?: ReactNode
   onRefresh?: () => void
@@ -145,6 +136,7 @@ export function ValuationWidget({
   format,
   formatSigned,
   loading,
+  refreshing = false,
   alert,
   footer,
   onRefresh,
@@ -203,13 +195,13 @@ export function ValuationWidget({
         <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
           <MetalCurrencySeg />
           {onRefresh ? (
-            <button
-              type="button"
+            <RefreshButton
               onClick={onRefresh}
-              className="app-no-drag rounded-lg border border-slate-600/80 bg-slate-900/60 px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:text-white"
+              loading={refreshing}
+              className="rounded-lg border border-slate-600/80 bg-slate-900/60 px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:text-white"
             >
               Làm mới
-            </button>
+            </RefreshButton>
           ) : null}
         </div>
       </div>

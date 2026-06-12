@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.8.3] - 2026-06-12
+### Added — UI Overhaul Phase 4/4: Controls & Feedback (không dependency mới)
+- **`SegmentedToggle`** (`src/components/SegmentedToggle.tsx`): toggle 2 cấp, glider trượt bằng transform, cùng timing với limelight (300ms cubic-bezier(0.3,0.9,0.3,1), không bounce)
+  - Cấp 1 `tier="glass"` (CHỈ 2 chỗ): VND/USD trong card Vàng/Bạc (`MetalCurrencySeg`) và Compact/Full toolbar Crypto — pill trắng mờ 6% + `backdrop-blur(6px)`, glider gradient `--app-accent` 38%→88% + glow mềm + viền sáng, chữ active tối (`bx-add-fg`); accent tự theo tab (gold/silver/teal)
+  - Cấp 2 `tier="flat"`: Chung–Từng coin, Spot/Futures (toolbar) và mini SPOT|FUT per-row (`dense`) — glider phẳng `bx-border-medium`, không blur/glow (tránh chi phí backdrop-filter nhân theo N dòng). Per-row đổi từ nút đơn hover-reveal sang mini toggle 2 option, logic flip giữ nguyên (`onToggleRowMarket`)
+  - Geometry: glider inset 2px khớp `p-0.5` của container (absolute không tự tính padding), width `calc((100%-4px)/n)`, bước trượt = `translateX(idx*100%)`
+- **`RefreshButton`** (`src/components/RefreshButton.tsx`): pattern loading chung — idle (icon vòng xoay + label) → loading (label `opacity-0` giữ nguyên bề rộng, spinner `--app-accent` đè giữa, `disabled` nhưng không mờ nút) → done (flash check xanh + viền `bx-green` ~1s, không toast). Áp cho: nút refresh mới trên toolbar Crypto (icon-only, cùng pipeline nonce với phím R qua `localRefreshNonce`), Làm mới card Vàng/Bạc (prop `refreshing` mới của `ValuationWidget` ← `isRefreshing`), Làm mới bảng (PreciousMetalsPanel), StaleBanner, Sync Portfolio (`bx.state.syncing`; nút Connect tách riêng giữ nguyên)
+- **`ToastShell`** (`src/components/ToastShell.tsx`): visual chung cho AppErrorToasts + AlertToast — surface tối, border-left 3px theo type, icon SVG đầu dòng, title + mô tả, nút X. 4 type trong hệ app: success `bx-green` / error `bx-red` / warning `bx-yellow` / info-alert `accent-crypto` teal cố định (không xanh dương, không theo accent tab)
+
+### Changed
+- **AppErrorToasts / AlertToast**: engine giữ nguyên (event bus, 5s/9s auto-dismiss, copy lỗi tiếng Việt); thêm slide-in từ phải + fade (`app-toast-in` 220ms), stack overlap `-mt-7` — cái cũ `scale` nhỏ dần + mờ dần phía sau, mới nhất luôn trước; hover dừng auto-dismiss (error: đếm phần còn lại per-toast qua Map timer; alert: pause flag)
+- **Cột actions watchlist theo mode**: `perCoin` chừa 120px cho mini toggle, `global` chỉ 36px cho nút X — symbol dài (BTCUSDT) hiển thị đầy đủ ở mode Chung tại 440px (trước đây luôn chiếm 92px kể cả khi không có toggle)
+
+### Notes
+- `package.json` không thêm dependency nào — toàn bộ glass/glider/spinner/toast bằng CSS thuần trong `index.css`
+- Done-flash của RefreshButton cũng xuất hiện khi data load lần đầu (loading mount → xong) — nhất quán với yêu cầu phím R kích hoạt state trên nút từ bên ngoài
+- Mockup tham chiếu: `mockup-phase4-controls-feedback.svg`
+
 ## [1.8.2] - 2026-06-11
 ### Added — UI Overhaul Phase 3/4: Tab Vàng / Bạc + dọn header
 - **Token `--color-bx-neutral` #3a424d**: phần TG của spread bar — xám trung tính, phần VN mang accent tab
