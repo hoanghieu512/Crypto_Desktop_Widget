@@ -207,6 +207,9 @@ export function useGoldPrice(enabled: boolean) {
       firstLoadRef.current = false
       if (mounted.current) {
         setLoading(false)
+        // Phải clear cả isRefreshing — nếu không, nút Làm mới (loading = isRefreshing
+        // || extraRefreshing) kẹt spinner vô hạn dù fetch đã xong / lỗi / timeout.
+        setIsRefreshing(false)
         if (enabled) setDataNonce((n) => n + 1)
       }
     }

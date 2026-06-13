@@ -21,6 +21,7 @@ Chi tiết kiến trúc, luồng dữ liệu và hạn chế: xem **[PROJECT_OVE
   - **Sparkline** — biểu đồ mini SVG theo dòng (Klines REST) có **gradient fill** theo hướng giá; lên = xanh, xuống = đỏ.
   - **Funding rate** — hiện rate hiện tại + thời gian kế tiếp trên status bar khi đang xem cặp Futures.
   - **SPOT/FUT theo dòng** — mini toggle 2 option (hover hiện) ở chế độ Từng coin.
+  - **Giá mark futures (v1.8.6)** — row Futures, Futures Simulator và PnL Portfolio dùng **chung một nguồn mark** (`futuresHub`). Vì WS futures (`fstream.binance.com`) ở vài mạng (VN) mở được nhưng **không đẩy dữ liệu** (status báo `OK` nhưng trắng giá), hub tự **fallback poll REST `premiumIndex` (~3s)** khi WS im lặng → giá mark vẫn hiện và chạy realtime như Spot.
 - **Price alerts (crypto)** — cảnh báo giá Above/Below, toast nổi + tuỳ chọn âm thanh + thông báo hệ thống (khi được cấp quyền); thêm nhanh từ icon chuông trên mỗi dòng watchlist; panel quản lý từ nút **Alerts** trên tab Crypto (teal cố định v1.8.5: badge đếm + switch bật/tắt + "Kích hoạt lại" teal; alert đã kích hoạt hiện mờ).
 - **Toast hợp nhất (v1.8.3)** — alert giá và lỗi dùng chung một visual (**ToastShell**): border-left màu theo type (success xanh / error đỏ / warning gold / alert **teal**), icon, nút X; slide-in từ phải, nhiều toast chồng stack (cũ thu nhỏ/mờ phía sau), hover tạm dừng auto-dismiss.
 - **Nút làm mới (v1.8.3)** — pattern chung mọi nơi (toolbar Crypto, card Vàng/Bạc, bảng nội địa, StaleBanner, Sync Portfolio): đang load thì label trong suốt (giữ nguyên bề rộng) + spinner mang accent ngữ cảnh, xong flash check xanh ~1s, không toast cho thao tác thành công.
@@ -37,7 +38,7 @@ Chi tiết kiến trúc, luồng dữ liệu và hạn chế: xem **[PROJECT_OVE
   - **Locale number parsing**: hỗ trợ nhập `808,8` hoặc `808.8`.
 - **Vàng / Bạc (Valuation widgets)** — UI tối giản tập trung **so sánh VN vs TG** và **spread**; thanh spread: đoạn **VN (accent tab) bên trái**, đoạn **TG (xám trung tính) bên phải** — cùng phía với 2 card VN/TG phía trên (v1.8.4); tiêu đề + giá trị spread mang accent tab; giá Mua/Bán VN to đậm xanh/đỏ, giá TG trắng trung tính. Nhỏ (300–360px) chỉ hiển thị dữ liệu thiết yếu; rộng hơn có thêm chi tiết. Bạc VN: niêm yết **Phú Quý** (giabac.phuquygroup.vn).
 - **Niêm yết trong nước (tuỳ màn hình)** — Vàng SJC/DOJI/BTMC và bạc **Phú Quý** chỉ hiện chi tiết ở width đủ lớn để tránh “bảng dài” trên widget nhỏ.
-- **Tab Vàng — một nút làm mới (v1.8.5)** — gỡ nút "Làm mới bảng" riêng; nút **Làm mới** của card (và phím `R`) giờ refresh đồng thời card định giá (spot + FX) lẫn bảng chi tiết trong nước, loading giữ đến khi cả hai nguồn xong rồi mới flash check. Hai nguồn lỗi độc lập — một nguồn lỗi không kẹt nút.
+- **Tab Vàng — một nút làm mới (v1.8.5)** — gỡ nút "Làm mới bảng" riêng; nút **Làm mới** của card (và phím `R`) giờ refresh đồng thời card định giá (spot + FX) lẫn bảng chi tiết trong nước, loading giữ đến khi cả hai nguồn xong rồi mới flash check. Hai nguồn lỗi độc lập — một nguồn lỗi không kẹt nút. **(v1.8.7: sửa lỗi kẹt spinner vô hạn — nguồn card (`useGoldPrice`) không clear cờ `isRefreshing` trong `finally`; nay luôn thoát loading kể cả khi lỗi/timeout.)**
 - **Định dạng** — `FormatProvider` toàn app: **Compact/Full** nằm trên toolbar Crypto, **VND/USD** nằm trong card Vàng/Bạc (setting chung — đổi ở một tab thì tab kia đổi theo). Không còn hàng strip riêng dưới tab bar (v1.8.2).
 - **Interaction system (subtle)** — tooltip phiên (3 dòng, delay ~140ms), hover nhẹ trên dòng watchlist và giá, focus ring tinh tế cho input, flash giá lên/xuống rất nhẹ.
 - **Version display** — số version (`v1.x.x`) hiện nhỏ, mờ cạnh nút minimize/close trên Electron; đọc từ `package.json` lúc build, không hard-code.
@@ -59,7 +60,7 @@ Chi tiết kiến trúc, luồng dữ liệu và hạn chế: xem **[PROJECT_OVE
 | UI | React 19, TypeScript, Tailwind CSS 4 |
 | Build | Vite 8 |
 | Desktop | Electron |
-| Realtime | WebSocket (Binance spot + futures mark) |
+| Realtime | WebSocket (Binance spot + futures mark); futures mark có **fallback REST `premiumIndex`** khi WS `fstream` không đẩy dữ liệu (v1.8.6) |
 | Lưu trữ cục bộ | `localStorage` (watchlist, portfolio, simulator, price alerts, cài đặt alerts; API keys Binance mã hoá) |
 | Binance sync | REST (signed HMAC SHA256 via WebCrypto) |
 

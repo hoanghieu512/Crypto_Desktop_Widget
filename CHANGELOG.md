@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.7] - 2026-06-13
+### Fixed — Nút "Làm mới" tab Vàng kẹt loading vô hạn
+- **Triệu chứng**: bấm "Làm mới" ở tab Vàng → spinner xoay mãi không thoát (>10 phút vẫn xoay) dù dữ liệu đã về (card + bảng có giá, timestamp nhảy). Tab Bạc không bị.
+- **Nguyên nhân**: trong `useGoldPrice.fetchAll` (`src/hooks/useGoldPrice.ts`), block `finally` chỉ `setLoading(false)` mà **quên `setIsRefreshing(false)`**. Refresh sau first-load chạy nhánh `setIsRefreshing(true)` nhưng không bao giờ được clear → `isRefreshing` kẹt `true` mãi. Nút Làm mới gộp tab Vàng (v1.8.5) có `loading = isRefreshing(card) || extraRefreshing(bảng)`; nguồn bảng (`useVnMetalPrices`) clear cờ đúng, còn nguồn card thì kẹt → OR luôn `true` → spinner vô hạn. Tab Bạc dùng hook khác, một nguồn, không dính.
+- **Cách sửa**: thêm `setIsRefreshing(false)` vào `finally` của `useGoldPrice.fetchAll` (đối xứng với `useVnMetalPrices` vốn đã clear đúng). Vì nằm trong `finally`, cờ luôn được gỡ kể cả khi một/cả hai nguồn lỗi hoặc timeout → nút thoát loading, flash check, về idle; không còn kẹt trong mọi nhánh.
+
 ## [1.8.6] - 2026-06-13
 ### Fixed — Futures mark price không load (REST fallback cho fstream)
 - **Triệu chứng**: chuyển coin sang Futures thì giá Mark luôn "—" dù status bar báo `Futures: OK`; Futures Simulator và PnL Portfolio cũng trắng giá. Spot (LAST) vẫn chạy bình thường.

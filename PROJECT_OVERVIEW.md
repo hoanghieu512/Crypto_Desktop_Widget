@@ -129,11 +129,11 @@ flowchart LR
 
 ### 4.3 EN / VI — Module notes
 
-- **Crypto:** WebSocket → `useRealtimePrice` (connecting/reconnecting + `retryConnection`) → price map `(symbol, market)` → `WatchlistDashboard` / `WatchlistRow`; sparklines via `useSparklineData` (loading/errors per row + `retry`); funding rates via `useFundingData` when needed; **ConnectionBanner** + skeleton while connecting/hydrating; **Futures** rows open `FuturesSimulatorPanel` + `useFuturesSimulator` (persisted per symbol). **`usePriceAlerts`** consumes live prices for trigger evaluation.  
-  **Crypto:** WS → `useRealtimePrice` (retry) → watchlist; sparkline/funding có loading và retry; banner kết nối + skeleton; simulator + `usePriceAlerts`.
+- **Crypto:** WebSocket → `useRealtimePrice` (connecting/reconnecting + `retryConnection`) → price map `(symbol, market)` → `WatchlistDashboard` / `WatchlistRow`; sparklines via `useSparklineData` (loading/errors per row + `retry`); funding rates via `useFundingData` when needed; **ConnectionBanner** + skeleton while connecting/hydrating; **Futures** rows open `FuturesSimulatorPanel` + `useFuturesSimulator` (persisted per symbol). **`usePriceAlerts`** consumes live prices for trigger evaluation. **Futures mark price (v1.8.6):** a single shared `futuresHub` feeds row + simulator + portfolio from one source; since `fstream.binance.com` WS opens but delivers no data on some networks (e.g. VN), the hub **falls back to REST `fapi/v1/premiumIndex` polling (~3s)** whenever the WS goes silent (>5s), so mark prices show even though `open` status only reflects the handshake.  
+  **Crypto:** WS → `useRealtimePrice` (retry) → watchlist; sparkline/funding có loading và retry; banner kết nối + skeleton; simulator + `usePriceAlerts`. **Giá mark futures (v1.8.6):** một `futuresHub` chung cấp giá cho row + simulator + portfolio; vì WS `fstream` mở được nhưng không đẩy dữ liệu ở vài mạng (VN), hub **fallback poll REST `premiumIndex` (~3s)** khi WS im lặng.
 
-- **Portfolio:** manual positions persisted in `localStorage` (`futures-portfolio-v1`); optional Binance sync uses signed REST `GET /fapi/v2/positionRisk` and **binanceErrorToVi** / toasts on failure. Mark price for PnL uses the same futures mark WebSocket as the simulator. **`usePortfolio`** hydrates async (skeleton until `storageHydrated`).  
-  **Portfolio:** lưu local; sync Binance + thông báo lỗi thân thiện; PnL theo WS mark; skeleton khi đang hydrate storage.
+- **Portfolio:** manual positions persisted in `localStorage` (`futures-portfolio-v1`); optional Binance sync uses signed REST `GET /fapi/v2/positionRisk` and **binanceErrorToVi** / toasts on failure. Mark price for PnL uses the same shared `futuresHub` as the simulator (WS + REST `premiumIndex` fallback), so all three stay on one mark source. **`usePortfolio`** hydrates async (skeleton until `storageHydrated`).  
+  **Portfolio:** lưu local; sync Binance + thông báo lỗi thân thiện; PnL theo cùng `futuresHub` (WS + fallback REST) như simulator; skeleton khi đang hydrate storage.
 
 - **Gold / Silver:** `fetchGoldWithFallback`, `fetchUsdVnd`, (`fetchSilverWorldWithFallback` for silver) → `useGoldPrice` / `useSilverPrice` / `useVnMetalPrices` → dashboards. Silver fetches `fetchVnSilverPrices` (Phú Quý) in the same `Promise.all` as world spot + FX; VN listings shown in `SilverDashboard`. `StaleBanner` (driven by `useOnlineStatus`) warns when data is from cache or browser is offline. `PriceMovementStrip` (`usePriceMovement` + `priceMovementMath`) shows short-term sparkline + % change + volatility badge on each metal card. REST errors use `fetchResilience` (backoff) + `fetchErrors` (classify).  
   **Vàng / Bạc:** fetch → hook → dashboard. Bạc: `fetchVnSilverPrices` (Phú Quý) song song với spot TG + FX trong `Promise.all`; niêm yết VN hiện trong `SilverDashboard`. `StaleBanner` cảnh báo khi offline/cache. `PriceMovementStrip` hiện sparkline ngắn hạn + % + badge biến động. Lỗi REST dùng retry backoff + phân loại lỗi.
@@ -231,8 +231,8 @@ sequenceDiagram
   R->>R: render last / mark, funding
 ```
 
-**EN:** `stream.binance.com` / `fstream.binance.com` → parse → batched `prices` state → row UI (basis spot–fut when both exist).  
-**VI:** Combined streams → parse → state `prices` theo batch → UI dòng (basis spot–fut khi đủ dữ liệu).
+**EN:** `stream.binance.com` / `fstream.binance.com` → parse → batched `prices` state → row UI (basis spot–fut when both exist). Futures mark also has a **REST `premiumIndex` fallback** in `futuresHub` when the `fstream` WS opens but delivers no frames (v1.8.6).  
+**VI:** Combined streams → parse → state `prices` theo batch → UI dòng (basis spot–fut khi đủ dữ liệu). Giá mark futures còn có **fallback REST `premiumIndex`** trong `futuresHub` khi WS `fstream` mở mà không có dữ liệu (v1.8.6).
 
 ### 6.2 Mermaid — Gold & silver (polling)
 
@@ -313,6 +313,7 @@ flowchart LR
 | Gold/silver update on **polling (~60s)**, not per-second like crypto WS. | Vàng/bạc cập nhật theo **polling (~60s)**, không mượt từng giây như crypto WS. |
 | Depends on **external APIs**; outages / rate limits → warnings, **cache** or **mock** (e.g. VN gold without SJC). | Phụ thuộc **API ngoài**; lỗi mạng / rate limit → cảnh báo, **cache** hoặc **mock** (vàng VN thiếu SJC). |
 | WebSocket **reconnect** cycles may cause brief gaps; status shown in UI. | **Reconnect** WS có thể tạo khoảng trống ngắn; UI hiển thị trạng thái. |
+| **Futures WS (`fstream.binance.com`)** is blocked/throttled at the data level on some networks (e.g. VN): the handshake opens (status shows `OK`) but no frames arrive. `futuresHub` covers this with a **REST `premiumIndex` poll fallback** (~3s) — note status `open` reflects only the handshake, not data flow (v1.8.6). | **WS futures (`fstream`)** bị chặn ở tầng dữ liệu trên vài mạng (VN): bắt tay được (trạng thái `OK`) nhưng không có frame. `futuresHub` xử lý bằng **fallback poll REST `premiumIndex`** (~3s) — trạng thái `open` chỉ phản ánh handshake (v1.8.6). |
 | **No server DB** — clearing storage or new device loses local data; use **export/import** (`exportImport.ts`) to back up watchlist, portfolio, alerts, simulator state. | **Không DB** — mất dữ liệu nếu xóa storage; dùng **export/import JSON** để sao lưu. |
 | **Browser storage quota** — large watchlists + history can approach **`localStorage` limits**; app surfaces a toast on save failure. | **Quota storage** — watchlist lớn có thể đầy bộ nhớ; lưu lỗi hiện toast. |
 | **VN silver** — one domestic source (Phú Quý, `giabac.phuquygroup.vn`); if fetch/parse fails the VN listing section is hidden while world spot remains visible. | **Bạc VN** — một nguồn nội địa (Phú Quý); nếu fetch/parse thất bại thì ẩn niêm yết VN, vẫn hiện spot TG. |
@@ -331,4 +332,4 @@ flowchart LR
 
 ---
 
-*Version 1.8.5 — 2026-06-12*
+*Version 1.8.7 — 2026-06-13*
