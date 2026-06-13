@@ -9,7 +9,6 @@ import {
 } from '../utils/goldDisplay'
 import { AssetCard } from './AssetCard'
 import { GoldDashboard } from './GoldDashboard'
-import { RefreshButton } from './RefreshButton'
 
 function changeClass(delta: number): string {
   if (delta > 0) return 'text-emerald-400'
@@ -25,6 +24,7 @@ export function PreciousMetalsPanel({ active }: Props) {
   const {
     goldByCode,
     loading,
+    isRefreshing,
     error,
     goldFetchWarning,
     updatedAt,
@@ -47,7 +47,12 @@ export function PreciousMetalsPanel({ active }: Props) {
   return (
     <div className="app-no-drag flex h-full min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden px-3 pb-4 pt-1 max-[299px]:gap-1.5 max-[299px]:px-2 min-[361px]:gap-3 min-[361px]:px-4">
       <div className="shrink-0">
-        <GoldDashboard active={active} />
+        {/* Nút Làm mới của card refresh CẢ bảng chi tiết (v1.8.5) — loading giữ đến khi cả 2 nguồn xong */}
+        <GoldDashboard
+          active={active}
+          extraRefresh={() => void refresh()}
+          extraRefreshing={isRefreshing}
+        />
       </div>
 
       <div className="hidden min-[420px]:flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
@@ -64,15 +69,6 @@ export function PreciousMetalsPanel({ active }: Props) {
             </a>
             <span className="hidden min-[361px]:inline"> · làm mới ~60s</span>
           </span>
-          <RefreshButton
-            title="Làm mới bảng giá"
-            onClick={() => void refresh()}
-            loading={loading}
-            className="shrink-0 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] text-slate-200 hover:border-slate-500 min-[361px]:text-xs"
-          >
-            <span className="min-[361px]:hidden">Làm mới</span>
-            <span className="hidden min-[361px]:inline">Làm mới bảng</span>
-          </RefreshButton>
         </div>
 
         {updatedAt ? (

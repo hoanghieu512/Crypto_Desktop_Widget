@@ -21,25 +21,28 @@ Chi tiết kiến trúc, luồng dữ liệu và hạn chế: xem **[PROJECT_OVE
   - **Sparkline** — biểu đồ mini SVG theo dòng (Klines REST) có **gradient fill** theo hướng giá; lên = xanh, xuống = đỏ.
   - **Funding rate** — hiện rate hiện tại + thời gian kế tiếp trên status bar khi đang xem cặp Futures.
   - **SPOT/FUT theo dòng** — mini toggle 2 option (hover hiện) ở chế độ Từng coin.
-- **Price alerts (crypto)** — cảnh báo giá Above/Below, toast nổi + tuỳ chọn âm thanh + thông báo hệ thống (khi được cấp quyền); thêm nhanh từ icon chuông trên mỗi dòng watchlist; panel quản lý từ nút **Alerts** trên tab Crypto.
+- **Price alerts (crypto)** — cảnh báo giá Above/Below, toast nổi + tuỳ chọn âm thanh + thông báo hệ thống (khi được cấp quyền); thêm nhanh từ icon chuông trên mỗi dòng watchlist; panel quản lý từ nút **Alerts** trên tab Crypto (teal cố định v1.8.5: badge đếm + switch bật/tắt + "Kích hoạt lại" teal; alert đã kích hoạt hiện mờ).
 - **Toast hợp nhất (v1.8.3)** — alert giá và lỗi dùng chung một visual (**ToastShell**): border-left màu theo type (success xanh / error đỏ / warning gold / alert **teal**), icon, nút X; slide-in từ phải, nhiều toast chồng stack (cũ thu nhỏ/mờ phía sau), hover tạm dừng auto-dismiss.
 - **Nút làm mới (v1.8.3)** — pattern chung mọi nơi (toolbar Crypto, card Vàng/Bạc, bảng nội địa, StaleBanner, Sync Portfolio): đang load thì label trong suốt (giữ nguyên bề rộng) + spinner mang accent ngữ cảnh, xong flash check xanh ~1s, không toast cho thao tác thành công.
-- **Toggle 2 cấp (v1.8.3)** — VND/USD (trong card kim loại) và Compact/Full (toolbar) kiểu **glass** (blur + glider gradient accent + glow); các toggle còn lại (Chung–Từng coin, Spot/Futures, SPOT/FUT theo dòng) kiểu **phẳng** — cùng nhịp trượt với limelight.
+- **Toggle 2 cấp (v1.8.3)** — VND/USD (trong card kim loại) và Compact/Full (toolbar) kiểu **glass** (blur + glider gradient accent + glow); các toggle còn lại (Chung–Từng coin, Spot/Futures, SPOT/FUT theo dòng, Ent/TP/SL + Cross/Isolated trong Simulator, Sound trong Alerts) kiểu **phẳng** — cùng nhịp trượt với limelight.
+- **Panel tool-layer (teal cố định, v1.8.5)** — 3 panel **Portfolio / Simulator / Alerts** mang **teal `#2dd4a7` cố định** (không đổi theo tab đang mở) + viền teal mảnh dọc mép trái = dấu hiệu "tool layer". Teal chỉ ở chrome (nút, badge, slider, switch, focus); **LONG/SHORT giữ xanh/đỏ ngữ nghĩa**, PnL/ROE/giá up-down bất biến. Badge **SYNCED** teal pill, **MANUAL** xám.
 - **Keyboard shortcuts** — `1`/`2`/`3` đổi tab; `P` mở Portfolio; `A` mở Alerts; `/` focus ô tìm cặp; `R` làm mới tab hiện tại; `?` xem trợ giúp phím tắt; `Esc` đóng panel/modal (xem modal trợ giúp để biết đầy đủ).
 - **Loading & errors (UX)** — skeleton (watchlist, vàng/bạc, portfolio) khi tải dữ liệu; banner kết nối + **Thử lại** khi WebSocket lỗi/đang kết nối lại; thông báo lỗi thân thiện (tiếng Việt) + retry cho gold/silver/sync Binance/funding/sparkline; toast lỗi ngắn khi sync Binance hoặc đầy `localStorage`.
 - **Stale / offline banner (vàng/bạc)** — banner cảnh báo khi trình duyệt mất mạng hoặc đang hiển thị dữ liệu cache (hiện thời gian cache, nút **Làm mới**).
 - **Price movement strip (vàng/bạc)** — mini sparkline + % thay đổi + badge biến động (Low/Med/High) trên card kim loại, dựa trên lịch sử giá ngắn hạn.
 - **Futures Simulator** — mở từ dòng **Futures** trong watchlist: panel nổi (snap mép phải, có thể kéo + snap cạnh), làm mờ nền, đóng bằng **ESC** hoặc click ra ngoài.  
   - **Terminology (Binance-style)**: user nhập **MARGIN (USDT)**, chọn **LEVERAGE** → app tính **NOTIONAL = margin × lev** và **SIZE (coins) = notional / entry**.
-  - **State persistence** theo symbol (đóng/mở lại không mất Entry/Margin/Lev/TP/SL/Side) + nút **Reset**.
+  - **Slider đòn bẩy (v1.8.5)**: track + thumb teal, kéo 1–125x, sync 2 chiều với ô Lev (chỉ là cách nhập thứ hai, không đổi công thức).
+  - **State persistence** theo symbol (đóng/mở lại không mất Entry/Margin/Lev/TP/SL/Side) + nút **Reset**; nút chính **Lưu vào Portfolio** (teal).
   - **Locale number parsing**: hỗ trợ nhập `808,8` hoặc `808.8`.
 - **Vàng / Bạc (Valuation widgets)** — UI tối giản tập trung **so sánh VN vs TG** và **spread**; thanh spread: đoạn **VN (accent tab) bên trái**, đoạn **TG (xám trung tính) bên phải** — cùng phía với 2 card VN/TG phía trên (v1.8.4); tiêu đề + giá trị spread mang accent tab; giá Mua/Bán VN to đậm xanh/đỏ, giá TG trắng trung tính. Nhỏ (300–360px) chỉ hiển thị dữ liệu thiết yếu; rộng hơn có thêm chi tiết. Bạc VN: niêm yết **Phú Quý** (giabac.phuquygroup.vn).
 - **Niêm yết trong nước (tuỳ màn hình)** — Vàng SJC/DOJI/BTMC và bạc **Phú Quý** chỉ hiện chi tiết ở width đủ lớn để tránh “bảng dài” trên widget nhỏ.
+- **Tab Vàng — một nút làm mới (v1.8.5)** — gỡ nút "Làm mới bảng" riêng; nút **Làm mới** của card (và phím `R`) giờ refresh đồng thời card định giá (spot + FX) lẫn bảng chi tiết trong nước, loading giữ đến khi cả hai nguồn xong rồi mới flash check. Hai nguồn lỗi độc lập — một nguồn lỗi không kẹt nút.
 - **Định dạng** — `FormatProvider` toàn app: **Compact/Full** nằm trên toolbar Crypto, **VND/USD** nằm trong card Vàng/Bạc (setting chung — đổi ở một tab thì tab kia đổi theo). Không còn hàng strip riêng dưới tab bar (v1.8.2).
 - **Interaction system (subtle)** — tooltip phiên (3 dòng, delay ~140ms), hover nhẹ trên dòng watchlist và giá, focus ring tinh tế cho input, flash giá lên/xuống rất nhẹ.
 - **Version display** — số version (`v1.x.x`) hiện nhỏ, mờ cạnh nút minimize/close trên Electron; đọc từ `package.json` lúc build, không hard-code.
 - **Window state (Electron, v1.8.1)** — nhớ size + vị trí cửa sổ qua các lần mở (`userData/window-state.json`); vị trí được validate với cấu hình màn hình hiện tại (màn cũ không còn → về bottom-right màn chính); default 440×640 đủ rộng cho 2 card Vàng VN/TG cạnh nhau.
-- **Portfolio (Futures)** — quản lý vị thế futures theo kiểu Binance:
+- **Portfolio (Futures)** — quản lý vị thế futures theo kiểu Binance (panel teal cố định, v1.8.5):
   - **Manual positions**: nhập tay (Add/Clear/Delete); có trường **ghi chú** (tùy chọn, tối đa 500 ký tự).
   - **Binance API sync (READ-ONLY)**: đồng bộ từ tài khoản Binance Futures qua endpoint `GET /fapi/v2/positionRisk` (không có trade/withdraw).  
     - Auto-refresh ~60s khi mở panel, có nút **Sync** + hiển thị trạng thái/last synced.

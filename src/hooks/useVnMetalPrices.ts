@@ -23,6 +23,8 @@ export function useVnMetalPrices(enabled: boolean) {
   const online = useOnlineStatus()
   const [goldByCode, setGoldByCode] = useState<Record<string, VnGoldQuote>>({})
   const [loading, setLoading] = useState(enabled)
+  /** Refresh sau first load (manual/poll) — cho nút làm mới gộp tab Vàng (v1.8.5) */
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [goldFetchWarning, setGoldFetchWarning] = useState<string | null>(null)
   const [staleMeta, setStaleMeta] = useState<{ isStale: boolean; cachedAt: number | null }>({
@@ -44,6 +46,8 @@ export function useVnMetalPrices(enabled: boolean) {
     if (!enabled) return
     if (firstLoadRef.current) {
       setLoading(true)
+    } else {
+      setIsRefreshing(true)
     }
     setError(null)
     setGoldFetchWarning(null)
@@ -95,6 +99,7 @@ export function useVnMetalPrices(enabled: boolean) {
       firstLoadRef.current = false
       if (mounted.current) {
         setLoading(false)
+        setIsRefreshing(false)
       }
     }
   }, [enabled])
@@ -130,6 +135,7 @@ export function useVnMetalPrices(enabled: boolean) {
   return {
     goldByCode,
     loading,
+    isRefreshing,
     error,
     goldFetchWarning,
     updatedAt,

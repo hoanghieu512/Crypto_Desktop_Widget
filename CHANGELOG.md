@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.8.6] - 2026-06-13
+### Fixed — Futures mark price không load (REST fallback cho fstream)
+- **Triệu chứng**: chuyển coin sang Futures thì giá Mark luôn "—" dù status bar báo `Futures: OK`; Futures Simulator và PnL Portfolio cũng trắng giá. Spot (LAST) vẫn chạy bình thường.
+- **Nguyên nhân**: WS futures `wss://fstream.binance.com` bắt tay được (`onopen` fire → trạng thái `open` → "OK") nhưng KHÔNG đẩy message nào trên nhiều mạng (vd. VN) — nên `open` chỉ phản ánh handshake, không phản ánh dòng dữ liệu. Kết quả: kết nối "sống" mà giá mark không bao giờ tới nơi hiển thị.
+- **Cách sửa** (`useRealtimePrice.ts`, trong `futuresHub` dùng chung cho row + simulator + portfolio):
+  - Thêm fallback REST poll mark price qua `fapi.binance.com/fapi/v1/premiumIndex` (host này hoạt động kể cả khi fstream im lặng). Snapshot REST map đúng shape `FuturesMarkSnapshot` (markPrice, indexPrice, fundingRate ← `lastFundingRate`, nextFundingTime, eventTime) → đẩy vào CÙNG listeners như tick WS, một nguồn giá chung.
+  - Poll mỗi 3s, tự bỏ qua khi WS đang đẩy tick trong vòng 5s (`FUT_WS_SILENCE_MS`) → mạng nào WS sống vẫn ưu tiên realtime WS, mạng nào WS chết thì REST gánh. Có primer ~1.2s để có giá sớm.
+  - Sửa bug `onclose` null hoá nhầm socket hiện tại (chỉ `ws = null` khi đúng `nextWs`) — tránh xoá ref của WS vừa mở khi reconnect.
+  - Listener id của hub đổi sang riêng theo từng instance hook (`instanceIdRef`) thay vì chỉ theo tập symbol — tránh watchlist và portfolio đụng id (Map ghi đè) khi trùng symbol, một bên mất dữ liệu.
+
+## [1.8.5] - 2026-06-12
+### Changed — Phase 5: Panels teal cố định + gộp làm mới tab Vàng (không dependency mới)
+- **Cả 3 panel (Portfolio / Simulator / Alerts) mang teal #2dd4a7 cố định**: root panel đặt `data-accent="crypto"` → mọi utility `accent` bên trong luôn teal, không theo tab. Viền teal mảnh dọc mép trái (`.app-panel-edge`, gradient 90%→15%) = dấu hiệu tool layer. Teal chỉ ở chrome — PnL/ROE/giá up-down bất biến, LONG/SHORT giữ xanh/đỏ ngữ nghĩa
+- **Portfolio**: badge synced `Binance` → pill `Synced` teal mờ; nút Add / Add position → teal ghost (`bg-accent/[0.14] + border accent/50`); dot trạng thái đồng bộ connected → teal; note icon (có ghi chú) + nút Save note → teal; focus ring textarea → `accent/40`; cảnh báo stale-sync `bx-yellow` → `amber-400`
+- **Simulator**: viền teal mép trái; badge `Futures` → teal pill; seg Ent/TP/SL và CROSS/ISOLATED → `SegmentedToggle` flat (cùng nhịp v1.8.3); **slider đòn bẩy mới** (range 1–125, track fill + thumb teal glow nhẹ, sync 2 chiều với input Lev — chỉ là cách nhập thứ hai, không đổi công thức); hàng MARK trên ladder → viền/nền teal mờ, `M` teal, 0% → secondary; khối PnL ring amber → ring teal nhạt; input focus ring → teal; nút chính "Lưu vào Portfolio" teal đặc chữ tối (label Việt hoá, bỏ emoji 📊), trạng thái Saved giữ xanh profit
+- **Alerts**: badge đếm teal cạnh title (số alert pending đang bật); nút header → teal ghost "+ Thêm cảnh báo"; toggle bật/tắt alert 🔔/🔕 → switch teal (`role="switch"`, cùng handler); nút Reset → teal ghost "Kích hoạt lại"; Sound On/Off → `SegmentedToggle` flat
+- **ApiKeySettings** (trong Portfolio): 2 nút Save → `bg-accent`; chữ READ-ONLY nhấn mạnh → teal
+- **Hết #f0b90b trong panel**: mọi `bg-bx-yellow`/`text-bx-yellow` còn sót (AddPositionForm, AddAlertForm, PositionRow, PortfolioDashboard, ApiKeySettings) chuyển teal; amber chỉ còn cho warning semantic (hint nhập sai, mark fallback, stale sync)
+- **Tab Vàng — một nút làm mới (mục D)**: gỡ nút "Làm mới bảng" (hàng meta vang.today giữ lại vì còn nội dung); nút "Làm mới" của card giờ refresh đồng thời card định giá (spot + FX) lẫn bảng chi tiết — `GoldDashboard` nhận `extraRefresh`/`extraRefreshing` từ `PreciousMetalsPanel`, loading = OR của 2 flag, flash check khi cả hai xong; `useVnMetalPrices` thêm `isRefreshing` (refresh sau first-load); `GoldDashboard` thêm listener `app:refresh` — phím R giờ refresh CẢ card (trước đây R chỉ refresh bảng). Hai nguồn lỗi độc lập, flag clear trong `finally` từng hook — một nguồn lỗi không kẹt nút
+
+### Notes
+- Panel chỉ mở được từ tab Crypto (logic cũ giữ nguyên) nhưng `data-accent="crypto"` chốt cứng teal phòng thay đổi sau
+- Alert row chưa có pill FUT/SPOT như mockup — `PriceAlert` không lưu field market, thêm sẽ vượt phạm vi "chỉ đổi skin"
+- Mockup tham chiếu: `mockup-phase5-panels-teal.svg`
+
 ## [1.8.4] - 2026-06-12
 ### Changed
 - **Thanh spread (tab Vàng + Bạc) đảo vị trí VN/TG** (`SpreadRelBar` trong `ValuationWidget.tsx`): VN (accent tab) chuyển sang đầu TRÁI, TG (xám `bx-neutral`) sang đầu PHẢI — cùng phía với 2 card Việt Nam / Thế giới phía trên, mắt không phải đảo chiều khi đọc từ card xuống bar. Màu đi theo nhãn, không theo vị trí; tỷ lệ share, dòng "VN cao hơn/thấp hơn TG", nút Phụ phí, layout khối spread giữ nguyên

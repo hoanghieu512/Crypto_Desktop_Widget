@@ -135,7 +135,7 @@ export const AddAlertForm = memo(function AddAlertForm({ symbol, currentPrice, o
         </button>
         <button
           type="submit"
-          className="app-no-drag rounded-lg bg-bx-yellow px-3 py-2 text-[12px] font-semibold text-bx-add-fg disabled:opacity-60"
+          className="app-no-drag rounded-lg bg-accent px-3 py-2 text-[12px] font-semibold text-bx-add-fg disabled:opacity-60"
           disabled={!valid}
         >
           Add alert

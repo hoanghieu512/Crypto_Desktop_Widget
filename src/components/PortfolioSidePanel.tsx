@@ -48,6 +48,7 @@ export function PortfolioSidePanel({ isOpen, onClose }: PortfolioSidePanelProps)
       />
 
       <aside
+        data-accent="crypto"
         className={`absolute right-0 top-0 flex h-full w-full flex-col border-l border-white/[0.08] bg-bx-base shadow-2xl shadow-black/70 ring-1 ring-black/40 transition-[transform,opacity] duration-250 ease-out sm:w-2/5 sm:min-w-80 ${
           enter ? 'opacity-100' : 'opacity-0'
         }`}
@@ -55,6 +56,7 @@ export function PortfolioSidePanel({ isOpen, onClose }: PortfolioSidePanelProps)
           transform: enter ? 'translate3d(0,0,0)' : 'translate3d(12px,0,0)',
         }}
       >
+        <span aria-hidden className="app-panel-edge" />
         <div className="app-no-drag flex items-center justify-between gap-2 border-b border-bx-border-subtle bg-bx-surface px-3 py-2">
           <div className="min-w-0">
             <p className="truncate text-symbol font-semibold text-bx-primary">Portfolio</p>

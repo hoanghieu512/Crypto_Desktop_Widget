@@ -53,7 +53,7 @@ export const ApiKeySettings = memo(function ApiKeySettings({ open, onClose, enab
           <div className="min-w-0">
             <p className="text-label font-semibold text-bx-primary">Binance Futures (Read-only)</p>
             <p className="mt-0.5 text-[11px] text-bx-muted">
-              Keys are stored locally. Use a key with <span className="text-bx-yellow">READ-ONLY</span> permissions only.
+              Keys are stored locally. Use a key with <span className="font-semibold text-accent">READ-ONLY</span> permissions only.
             </p>
           </div>
           <button
@@ -177,7 +177,7 @@ export const ApiKeySettings = memo(function ApiKeySettings({ open, onClose, enab
 
               <button
                 type="button"
-                className="app-no-drag rounded-lg bg-bx-yellow px-3 py-2 text-[12px] font-semibold text-bx-add-fg disabled:opacity-60"
+                className="app-no-drag rounded-lg bg-accent px-3 py-2 text-[12px] font-semibold text-bx-add-fg disabled:opacity-60"
                 disabled={busy || !canSave}
                 onClick={() => setShowWarning(true)}
               >
@@ -215,7 +215,7 @@ export const ApiKeySettings = memo(function ApiKeySettings({ open, onClose, enab
               </button>
               <button
                 type="button"
-                className="app-no-drag rounded-lg bg-bx-yellow px-3 py-2 text-[12px] font-semibold text-bx-add-fg"
+                className="app-no-drag rounded-lg bg-accent px-3 py-2 text-[12px] font-semibold text-bx-add-fg"
                 onClick={async () => {
                   setBusy(true)
                   try {

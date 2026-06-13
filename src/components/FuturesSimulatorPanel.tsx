@@ -12,11 +12,12 @@ import {
 import { formatSize } from '../utils/formatNumber'
 import { getPnlIntensityClass } from '../utils/formatPnl'
 import { Skeleton, SkeletonText } from './Skeleton'
+import { SegmentedToggle } from './SegmentedToggle'
 
 type LadderTargetField = 'entry' | 'tp' | 'sl'
 
 const inputClass =
-  'w-full min-w-0 rounded-lg bg-neutral-800 px-2 py-1.5 text-sm font-medium text-neutral-100 outline-none ring-0 focus:ring-1 focus:ring-white/10 focus:ring-inset'
+  'w-full min-w-0 rounded-lg bg-neutral-800 px-2 py-1.5 text-sm font-medium text-neutral-100 outline-none ring-0 focus:ring-1 focus:ring-accent/40 focus:ring-inset'
 
 const labelClass = 'mb-0.5 block text-meta font-medium uppercase tracking-wide text-neutral-500'
 
@@ -163,11 +164,6 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
     }, 180)
   }
 
-  const segSmall =
-    'rounded-md px-2 py-0.5 text-meta font-semibold uppercase tracking-wide transition-colors duration-150'
-  const segOn = 'bg-amber-500/25 text-amber-100 shadow-sm'
-  const segOff = 'bg-neutral-800/60 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300'
-
   const pnlTone = pnl == null ? 'text-neutral-300' : getPnlIntensityClass(pnlPercent)
 
   const longOn =
@@ -181,6 +177,9 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
 
   const entryN = parseInputNumber(sim.entryPrice)
   const levN = parseInputNumber(sim.leverage)
+  /** Slider đồng bộ với input Lev — chỉ là cách nhập thứ hai, không đổi logic */
+  const levSlider = Math.min(125, Math.max(1, Math.round(levN ?? 10)))
+  const levFillPct = ((levSlider - 1) / 124) * 100
   const marginUsdtN = parseInputNumber(sim.positionSize)
   const notionalUsdtN =
     marginUsdtN != null && marginUsdtN > 0 && levN != null && levN > 0 ? marginUsdtN * levN : null
@@ -238,8 +237,10 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
 
   return (
     <div
-      className={`app-no-drag flex min-w-0 w-full max-w-none shrink-0 flex-col overflow-hidden bg-neutral-900 shadow-xl ring-1 ring-white/5 ${className}`.trim()}
+      data-accent="crypto"
+      className={`app-no-drag relative flex min-w-0 w-full max-w-none shrink-0 flex-col overflow-hidden bg-neutral-900 shadow-xl ring-1 ring-white/5 ${className}`.trim()}
     >
+      <span aria-hidden className="app-panel-edge" />
       {/* Header (fixed) */}
       <div className="shrink-0 app-pad-lg">
         <div className="flex items-start justify-between gap-2 border-b border-white/10 pb-2">
@@ -248,7 +249,7 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
               <span className="truncate font-mono text-sm font-semibold tracking-tight text-neutral-100">
                 {symbol}
               </span>
-              <span className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-400/95">
+              <span className="shrink-0 rounded-full bg-accent/[0.14] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-accent">
                 Futures
               </span>
             </div>
@@ -294,33 +295,18 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
           <div className="app-vstack-md">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-meta font-medium text-neutral-500">Ladder</span>
-              <div
-                className="flex rounded-lg border border-neutral-700/80 bg-neutral-950/50 p-0.5"
-                role="group"
-                aria-label="Ô giá được điền khi chọn mức"
-              >
-                <button
-                  type="button"
-                  className={`app-no-drag shrink-0 ${segSmall} ${ladderTarget === 'entry' ? segOn : segOff}`}
-                  onClick={() => setLadderTarget('entry')}
-                >
-                  Ent
-                </button>
-                <button
-                  type="button"
-                  className={`app-no-drag shrink-0 ${segSmall} ${ladderTarget === 'tp' ? segOn : segOff}`}
-                  onClick={() => setLadderTarget('tp')}
-                >
-                  TP
-                </button>
-                <button
-                  type="button"
-                  className={`app-no-drag shrink-0 ${segSmall} ${ladderTarget === 'sl' ? segOn : segOff}`}
-                  onClick={() => setLadderTarget('sl')}
-                >
-                  SL
-                </button>
-              </div>
+              <SegmentedToggle<LadderTargetField>
+                tier="flat"
+                dense
+                options={[
+                  { value: 'entry', label: 'Ent' },
+                  { value: 'tp', label: 'TP' },
+                  { value: 'sl', label: 'SL' },
+                ]}
+                value={ladderTarget}
+                onChange={setLadderTarget}
+                ariaLabel="Ô giá được điền khi chọn mức"
+              />
             </div>
             <div className="max-h-[5rem] overflow-y-auto overflow-x-hidden rounded-lg border border-neutral-800/90 bg-neutral-950/40">
               <ul className="divide-y divide-neutral-800/80 py-0.5" role="listbox">
@@ -337,7 +323,7 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
                         type="button"
                         className={`app-no-drag flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left transition-colors duration-150 ease-out ${
                           isMark
-                            ? 'bg-amber-500/15 text-amber-50 ring-1 ring-inset ring-amber-500/35'
+                            ? 'bg-accent/[0.12] text-bx-primary ring-1 ring-inset ring-accent/35'
                             : 'text-neutral-200 hover:bg-neutral-800/70 active:bg-neutral-800'
                         }`}
                         onClick={() => applyLadderPrice(level)}
@@ -347,7 +333,7 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
                         <span className="min-w-0 truncate font-mono text-label font-semibold tabular-nums">
                           {formatPrice(level)}
                           {isMark ? (
-                            <span className="ml-1.5 text-[9px] font-bold uppercase tracking-wide text-amber-400/90">
+                            <span className="ml-1.5 text-[9px] font-bold uppercase tracking-wide text-accent">
                               M
                             </span>
                           ) : null}
@@ -358,7 +344,7 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
                               ? 'text-emerald-400/85'
                               : pct < 0
                                 ? 'text-rose-400/85'
-                                : 'text-amber-300/90'
+                                : 'text-bx-secondary'
                           }`}
                         >
                           {pctStr}
@@ -439,33 +425,39 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
             </div>
           </div>
 
-        <div className="flex min-w-0 justify-center">
-          <div className="inline-flex rounded-lg border border-white/10 bg-neutral-950/20 p-0.5">
-            <button
-              type="button"
-              className={`app-no-drag rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
-                sim.marginMode === 'cross'
-                  ? 'bg-blue-500/20 text-blue-400'
-                  : 'text-neutral-500 hover:text-neutral-200'
-              }`}
-              onClick={() => sim.setMarginMode('cross')}
-              title="Cross margin"
-            >
-              CROSS
-            </button>
-            <button
-              type="button"
-              className={`app-no-drag rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
-                sim.marginMode === 'isolated'
-                  ? 'bg-blue-500/20 text-blue-400'
-                  : 'text-neutral-500 hover:text-neutral-200'
-              }`}
-              onClick={() => sim.setMarginMode('isolated')}
-              title="Isolated margin"
-            >
-              ISOLATED
-            </button>
+        <div className="min-w-0">
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <span className="text-meta font-medium uppercase tracking-wide text-neutral-500">Đòn bẩy</span>
+            <span className="font-mono text-meta font-semibold tabular-nums text-accent">
+              {levSlider}x
+            </span>
           </div>
+          <input
+            type="range"
+            min={1}
+            max={125}
+            step={1}
+            value={levSlider}
+            onChange={(e) => sim.setLeverage(e.target.value)}
+            className="app-no-drag app-range"
+            style={{
+              background: `linear-gradient(to right, var(--app-accent) ${levFillPct}%, var(--color-bx-border-subtle) ${levFillPct}%)`,
+            }}
+            aria-label="Đòn bẩy"
+          />
+        </div>
+
+        <div className="flex min-w-0 justify-center">
+          <SegmentedToggle<'cross' | 'isolated'>
+            tier="flat"
+            options={[
+              { value: 'cross', label: 'CROSS', title: 'Cross margin' },
+              { value: 'isolated', label: 'ISOLATED', title: 'Isolated margin' },
+            ]}
+            value={sim.marginMode}
+            onChange={(m) => sim.setMarginMode(m)}
+            ariaLabel="Chế độ margin"
+          />
         </div>
 
           <div className="grid min-w-0 grid-cols-2 gap-2">
@@ -523,7 +515,7 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
           </button>
         </div>
 
-        <div className="rounded-xl bg-gradient-to-b from-amber-500/10 to-neutral-950/90 px-3 py-3 ring-1 ring-amber-500/20 ring-inset">
+        <div className="rounded-xl bg-gradient-to-b from-accent/[0.08] to-neutral-950/90 px-3 py-3 ring-1 ring-accent/20 ring-inset">
           <div className="app-vstack-sm">
             <p className="text-center text-meta font-semibold uppercase tracking-wider text-neutral-500">PnL (mark)</p>
             <div className="flex flex-wrap items-baseline justify-center gap-x-2 gap-y-1">
@@ -600,11 +592,11 @@ export const FuturesSimulatorPanel = memo(function FuturesSimulatorPanel({
             justSaved
               ? 'border-profit/35 bg-profit/10 text-profit'
               : canSave
-                ? 'border-white/[0.10] bg-neutral-950/40 text-neutral-200 hover:bg-neutral-800/50'
+                ? 'border-transparent bg-accent text-bx-add-fg hover:opacity-95'
                 : 'cursor-not-allowed border-white/[0.06] bg-neutral-950/20 text-neutral-600'
           }`}
         >
-          {justSaved ? '✓ Saved to Portfolio' : '📊 Add to Portfolio'}
+          {justSaved ? '✓ Đã lưu vào Portfolio' : 'Lưu vào Portfolio'}
         </button>
       </div>
     </div>

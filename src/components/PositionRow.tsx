@@ -143,7 +143,7 @@ export const PositionRow = memo(function PositionRow({
               <button
                 type="button"
                 className={`app-no-drag rounded-md px-1.5 py-1 text-[12px] ${
-                  hasNote ? 'text-bx-yellow hover:bg-bx-elevated' : 'text-bx-muted hover:bg-bx-elevated hover:text-bx-secondary'
+                  hasNote ? 'text-accent hover:bg-bx-elevated' : 'text-bx-muted hover:bg-bx-elevated hover:text-bx-secondary'
                 }`}
                 title={hasNote ? notePreview : 'Add note'}
                 onClick={() => {
@@ -156,8 +156,8 @@ export const PositionRow = memo(function PositionRow({
               </button>
             ) : null}
             {p.source === 'synced' ? (
-              <span className="shrink-0 rounded bg-bx-elevated px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-bx-secondary">
-                Binance
+              <span className="shrink-0 rounded-full bg-accent/[0.14] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
+                Synced
               </span>
             ) : null}
             {row.markMissing ? (
@@ -176,7 +176,7 @@ export const PositionRow = memo(function PositionRow({
                     <p className="text-[11px] font-mono text-bx-muted">{Math.min(500, draft.length)}/500</p>
                   </div>
                   <textarea
-                    className="app-no-drag w-full resize-none rounded-lg border border-bx-border-medium bg-bx-input px-2 py-2 text-[12px] text-bx-primary outline-none focus:ring-1 focus:ring-white/10"
+                    className="app-no-drag w-full resize-none rounded-lg border border-bx-border-medium bg-bx-input px-2 py-2 text-[12px] text-bx-primary outline-none focus:ring-1 focus:ring-accent/40"
                     rows={4}
                     value={draft}
                     onChange={(e) => setDraft(e.target.value.slice(0, 500))}
@@ -203,7 +203,7 @@ export const PositionRow = memo(function PositionRow({
                     </button>
                     <button
                       type="button"
-                      className="app-no-drag rounded-lg bg-bx-yellow px-3 py-1.5 text-[12px] font-semibold text-bx-add-fg disabled:opacity-60"
+                      className="app-no-drag rounded-lg bg-accent px-3 py-1.5 text-[12px] font-semibold text-bx-add-fg disabled:opacity-60"
                       onClick={saveNote}
                       disabled={draft.length > 500}
                       title="Cmd/Ctrl+Enter to save"

@@ -1,8 +1,15 @@
 /* eslint-disable react-hooks/set-state-in-effect -- WebSocket: reset state khi đổi stream / teardown */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 
 const SPOT_COMBINED_WS = 'wss://stream.binance.com:9443/stream'
 const FUTURES_COMBINED_WS = 'wss://fstream.binance.com/stream'
+
+/** REST mark price (futures). Dùng làm fallback khi WS fstream im lặng. */
+const FUTURES_PREMIUM_INDEX_URL = 'https://fapi.binance.com/fapi/v1/premiumIndex'
+/** Nhịp poll REST khi WS không đẩy dữ liệu. */
+const FUT_POLL_INTERVAL_MS = 3000
+/** Quá ngần này không có tick WS → coi WS "im lặng" và bật REST poll. */
+const FUT_WS_SILENCE_MS = 5000
 
 export type Market = 'spot' | 'futures'
 
@@ -148,9 +155,52 @@ const futuresHub = (() => {
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
   let shouldReconnect = true
 
+  // Fallback REST: nhiều mạng (vd. VN) bắt tay được fstream WS (onopen → "OK")
+  // nhưng KHÔNG nhận message nào. Khi WS im lặng, poll mark price qua fapi REST
+  // và đẩy vào cùng listeners → row / simulator / portfolio đều có giá chung nguồn.
+  let lastTickAt = 0
+  let pollTimer: ReturnType<typeof setInterval> | null = null
+  let pollInFlight = false
+
   const notifyStatus = () => {
     const streams = desiredSymbols.map((s) => `${s}@markPrice`)
     for (const l of listeners.values()) l.onStatus(status, lastError, streams)
+  }
+
+  const dispatchSnap = (snap: FuturesMarkSnapshot) => {
+    for (const l of listeners.values()) l.onSnap(snap)
+  }
+
+  const wsAlive = () => lastTickAt > 0 && Date.now() - lastTickAt < FUT_WS_SILENCE_MS
+
+  const doPoll = async () => {
+    if (pollInFlight || desiredSymbols.length === 0 || wsAlive()) return
+    const symbols = desiredSymbols
+    pollInFlight = true
+    try {
+      const snaps = await Promise.all(symbols.map(fetchFuturesMarkViaRest))
+      // WS sống lại trong lúc fetch → bỏ kết quả poll (ưu tiên tick WS).
+      if (wsAlive()) return
+      for (const snap of snaps) {
+        if (snap) dispatchSnap(snap)
+      }
+    } finally {
+      pollInFlight = false
+    }
+  }
+
+  const startPolling = () => {
+    if (pollTimer != null) return
+    pollTimer = setInterval(() => void doPoll(), FUT_POLL_INTERVAL_MS)
+    // Primer: nếu WS không đẩy trong ~1.2s thì vẫn có giá sớm.
+    setTimeout(() => void doPoll(), 1200)
+  }
+
+  const stopPolling = () => {
+    if (pollTimer != null) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    }
   }
 
   const clearTimer = () => {
@@ -184,11 +234,15 @@ const futuresHub = (() => {
     closeWs()
 
     if (desiredSymbols.length === 0) {
+      stopPolling()
       status = 'idle'
       lastError = null
       notifyStatus()
       return
     }
+
+    // Luôn bật REST poll fallback (tự bỏ qua khi WS đang đẩy tick).
+    startPolling()
 
     lastError = null
     status = reconnectAttempt > 0 ? 'reconnecting' : 'connecting'
@@ -207,7 +261,8 @@ const futuresHub = (() => {
       const data = parseCombinedRaw(event.data as string)
       const snap = data ? parseFuturesMarkPayload(data) : null
       if (!snap) return
-      for (const l of listeners.values()) l.onSnap(snap)
+      lastTickAt = Date.now()
+      dispatchSnap(snap)
     }
 
     nextWs.onerror = () => {
@@ -216,7 +271,8 @@ const futuresHub = (() => {
     }
 
     nextWs.onclose = () => {
-      ws = null
+      // Chỉ null hoá khi đúng socket hiện tại (tránh xoá ref của WS mới mở).
+      if (ws === nextWs) ws = null
       status = 'closed'
       notifyStatus()
       if (!shouldReconnect || desiredSymbols.length === 0) return
@@ -251,6 +307,7 @@ const futuresHub = (() => {
       if (!shouldReconnect) {
         clearTimer()
         closeWs()
+        stopPolling()
         status = desiredSymbols.length > 0 ? 'closed' : 'idle'
         notifyStatus()
       } else {
@@ -300,6 +357,47 @@ function parseFuturesMarkPayload(payload: unknown): FuturesMarkSnapshot | null {
     fundingRate: d.r,
     nextFundingTime: d.T,
     eventTime: d.E,
+  }
+}
+
+type PremiumIndexResponse = {
+  symbol?: string
+  markPrice?: string
+  indexPrice?: string
+  lastFundingRate?: string
+  nextFundingTime?: number
+  time?: number
+}
+
+/**
+ * Lấy mark price futures qua REST (`/fapi/v1/premiumIndex`) — fallback khi WS
+ * fstream im lặng. Trả về cùng shape FuturesMarkSnapshot để đẩy chung pipeline.
+ */
+async function fetchFuturesMarkViaRest(
+  symbol: string,
+): Promise<FuturesMarkSnapshot | null> {
+  try {
+    const res = await fetch(
+      `${FUTURES_PREMIUM_INDEX_URL}?symbol=${symbol.toUpperCase()}`,
+    )
+    if (!res.ok) return null
+    const d = (await res.json()) as PremiumIndexResponse
+    if (typeof d.symbol !== 'string' || typeof d.markPrice !== 'string') {
+      return null
+    }
+    const markNum = Number(d.markPrice)
+    if (!Number.isFinite(markNum) || markNum <= 0) return null
+    return {
+      symbol: d.symbol,
+      markPrice: d.markPrice,
+      indexPrice: typeof d.indexPrice === 'string' ? d.indexPrice : undefined,
+      fundingRate: typeof d.lastFundingRate === 'string' ? d.lastFundingRate : '0',
+      nextFundingTime:
+        typeof d.nextFundingTime === 'number' ? d.nextFundingTime : 0,
+      eventTime: typeof d.time === 'number' ? d.time : Date.now(),
+    }
+  } catch {
+    return null
   }
 }
 
@@ -417,6 +515,9 @@ export function useRealtimePrice(
   const pendingFutRef = useRef<Record<string, FuturesMarkSnapshot>>({})
   const rafRef = useRef<number | null>(null)
 
+  // Khoá listener riêng cho từng instance hook — tránh đụng id giữa watchlist
+  // và portfolio khi trùng tập symbol (Map sẽ ghi đè, một bên mất dữ liệu).
+  const instanceId = useId()
   const spotReconnectAttemptRef = useRef(0)
   const spotReconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const spotShouldReconnectRef = useRef(true)
@@ -567,7 +668,7 @@ export function useRealtimePrice(
       clearFutSub()
       setFutErr(null)
       // Stable id per hook instance + symbol set.
-      const id = `rt-fut|${futuresKey}`
+      const id = `${instanceId}|fut|${futuresKey}`
       futUnsubRef.current = futuresHub.subscribe({
         id,
         symbolsKey: futuresKey,

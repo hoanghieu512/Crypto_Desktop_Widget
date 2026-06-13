@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useGoldPrice } from '../hooks/useGoldPrice'
 import { useFormatPrice } from '../hooks/useFormatPrice'
 import type { SpreadInsight } from '../utils/goldPrice'
@@ -12,9 +13,12 @@ const PAGE_TOOLTIP =
 
 type Props = {
   active: boolean
+  /** Refresh gộp (v1.8.5): nút Làm mới của card cũng refresh bảng chi tiết */
+  extraRefresh?: () => void
+  extraRefreshing?: boolean
 }
 
-export function GoldDashboard({ active }: Props) {
+export function GoldDashboard({ active, extraRefresh, extraRefreshing = false }: Props) {
   const {
     worldBuyUsdPerOz,
     worldSellUsdPerOz,
@@ -40,6 +44,18 @@ export function GoldDashboard({ active }: Props) {
   } = useGoldPrice(active)
 
   const { format: fmtLevel, formatSigned: fmtSignedLevel, unitHint } = useFormatPrice('gold')
+
+  /** Phím R (app:refresh) giờ refresh cả card định giá — trước v1.8.5 chỉ refresh bảng */
+  useEffect(() => {
+    if (!active) return
+    const on = (e: Event) => {
+      const ce = e as CustomEvent<{ tab?: string }>
+      if (ce.detail?.tab && ce.detail.tab !== 'gold') return
+      void refresh()
+    }
+    window.addEventListener('app:refresh', on as EventListener)
+    return () => window.removeEventListener('app:refresh', on as EventListener)
+  }, [active, refresh])
 
   const sp = spread
   const worldOk =
@@ -164,7 +180,7 @@ export function GoldDashboard({ active }: Props) {
             format={fmtLevel}
             formatSigned={fmtSignedLevel}
             loading={Boolean(loading && !ready && !worldOk)}
-            refreshing={isRefreshing}
+            refreshing={isRefreshing || extraRefreshing}
             alert={hasAlert ? alert : null}
             footer={
               ready && vnLabel ? (
@@ -174,7 +190,10 @@ export function GoldDashboard({ active }: Props) {
                 </span>
               ) : null
             }
-            onRefresh={() => void refresh()}
+            onRefresh={() => {
+              void refresh()
+              extraRefresh?.()
+            }}
           />
         )}
         {isRefreshing && !(loading && !worldOk) ? (

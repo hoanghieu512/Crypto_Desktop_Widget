@@ -223,8 +223,8 @@ Sau mỗi lần implement xong, chạy theo thứ tự:
 4. Thêm entry `## [X.Y.Z]` vào đầu `CHANGELOG.md`
 5. Cập nhật `PROJECT_OVERVIEW.md` — module notes + Known Issues table + footer version/date
 6. Cập nhật `README.md` — các bullet liên quan đến feature bị thay đổi
-7. Cập nhật memory file `/Users/lavopavden/.claude/projects/-Users-lavopavden-Dev-projects-OnChainRep/memory/project_overview.md` — version + version history table row
+7. Cập nhật memory file `/Users/lavopavden/.claude/projects/-Users-lavopavden-Dev-projects-Crypto-Desktop-Widget/memory/crypto_widget_overview.md` — version + version history table row
 
 Bước 5–7 chỉ cần làm khi user yêu cầu "update docs/readme/overview" sau khi code xong, hoặc khi thay đổi ảnh hưởng đến flow được mô tả trong các file đó.
 
-## Current version: 1.8.4
+## Current version: 1.8.6

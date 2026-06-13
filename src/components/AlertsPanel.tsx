@@ -2,6 +2,7 @@ import { memo, useMemo, useState } from 'react'
 import type { PriceAlert } from '../types/alerts'
 import { AddAlertForm } from './AddAlertForm'
 import { Skeleton, SkeletonText } from './Skeleton'
+import { SegmentedToggle } from './SegmentedToggle'
 
 export type AlertsPanelProps = {
   open: boolean
@@ -40,20 +41,31 @@ export const AlertsPanel = memo(function AlertsPanel(props: AlertsPanelProps) {
         onClick={props.onClose}
       />
 
-      <aside className="absolute right-0 top-0 flex h-full w-full flex-col border-l border-white/[0.08] bg-bx-base shadow-2xl shadow-black/70 ring-1 ring-black/40 sm:w-2/5 sm:min-w-80">
+      <aside
+        data-accent="crypto"
+        className="absolute right-0 top-0 flex h-full w-full flex-col border-l border-white/[0.08] bg-bx-base shadow-2xl shadow-black/70 ring-1 ring-black/40 sm:w-2/5 sm:min-w-80"
+      >
+        <span aria-hidden className="app-panel-edge" />
         <div className="flex items-center justify-between gap-2 border-b border-bx-border-subtle bg-bx-surface px-3 py-2">
           <div className="min-w-0">
-            <p className="truncate text-symbol font-semibold text-bx-primary">Price Alerts</p>
+            <p className="flex min-w-0 items-center gap-2 truncate text-symbol font-semibold text-bx-primary">
+              Price Alerts
+              {pending.filter((a) => a.enabled).length > 0 ? (
+                <span className="inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-accent/[0.16] px-1.5 py-0.5 text-[10px] font-bold leading-none text-accent">
+                  {pending.filter((a) => a.enabled).length}
+                </span>
+              ) : null}
+            </p>
             <p className="truncate text-meta text-bx-muted">Triggers on live prices while Crypto tab is open</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               disabled={!storageReady}
-              className="app-no-drag rounded-lg border border-bx-border-medium bg-bx-input px-3 py-2 text-label font-semibold text-bx-secondary hover:text-bx-primary disabled:cursor-not-allowed disabled:opacity-45"
+              className="app-no-drag rounded-lg border border-accent/50 bg-accent/[0.14] px-3 py-2 text-label font-semibold text-accent transition-colors hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-45"
               onClick={() => setAdding(true)}
             >
-              Add
+              + Thêm cảnh báo
             </button>
             <button
               type="button"
@@ -68,15 +80,16 @@ export const AlertsPanel = memo(function AlertsPanel(props: AlertsPanelProps) {
 
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-bx-border-subtle bg-bx-base px-3 py-2">
           <span className="text-[12px] font-medium text-bx-secondary">Sound</span>
-          <button
-            type="button"
-            className={`app-no-drag rounded-lg border border-bx-border-medium px-3 py-1.5 text-[12px] font-semibold ${
-              props.soundEnabled ? 'bg-bx-elevated text-bx-primary' : 'bg-bx-input text-bx-secondary hover:text-bx-primary'
-            }`}
-            onClick={() => props.setSoundEnabled(!props.soundEnabled)}
-          >
-            {props.soundEnabled ? 'On' : 'Off'}
-          </button>
+          <SegmentedToggle<'on' | 'off'>
+            tier="flat"
+            options={[
+              { value: 'on', label: 'On' },
+              { value: 'off', label: 'Off' },
+            ]}
+            value={props.soundEnabled ? 'on' : 'off'}
+            onChange={(v) => props.setSoundEnabled(v === 'on')}
+            ariaLabel="Âm thanh cảnh báo"
+          />
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
@@ -124,11 +137,21 @@ export const AlertsPanel = memo(function AlertsPanel(props: AlertsPanelProps) {
                       <div className="flex shrink-0 items-center gap-2">
                         <button
                           type="button"
-                          className="app-no-drag rounded-lg border border-bx-border-medium bg-bx-input px-2 py-1 text-[12px] font-semibold text-bx-secondary hover:text-bx-primary"
+                          role="switch"
+                          aria-checked={a.enabled}
+                          className={`app-no-drag relative h-[18px] w-[34px] shrink-0 rounded-full transition-colors duration-150 ${
+                            a.enabled ? 'bg-accent/90' : 'bg-bx-border-medium'
+                          }`}
                           onClick={() => props.onToggle(a.id, !a.enabled)}
                           title={a.enabled ? 'Disable' : 'Enable'}
+                          aria-label={a.enabled ? 'Tắt cảnh báo' : 'Bật cảnh báo'}
                         >
-                          {a.enabled ? '🔔' : '🔕'}
+                          <span
+                            aria-hidden
+                            className={`absolute top-[2px] size-[14px] rounded-full bg-bx-base transition-[left] duration-150 ${
+                              a.enabled ? 'left-[18px]' : 'left-[2px]'
+                            }`}
+                          />
                         </button>
                         <button
                           type="button"
@@ -169,11 +192,11 @@ export const AlertsPanel = memo(function AlertsPanel(props: AlertsPanelProps) {
                       <div className="flex shrink-0 items-center gap-2">
                         <button
                           type="button"
-                          className="app-no-drag rounded-lg border border-bx-border-medium bg-bx-input px-2 py-1 text-[12px] font-semibold text-bx-secondary hover:text-bx-primary"
+                          className="app-no-drag rounded-lg border border-accent/40 bg-accent/[0.12] px-2 py-1 text-[12px] font-semibold text-accent transition-colors hover:bg-accent/20"
                           onClick={() => props.onReset(a.id)}
-                          title="Reset"
+                          title="Đưa cảnh báo về trạng thái chờ"
                         >
-                          Reset
+                          Kích hoạt lại
                         </button>
                         <button
                           type="button"

@@ -282,7 +282,7 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
                 <span
                   className={`size-1.5 rounded-full ${
                     bx.state.status === 'connected'
-                      ? 'bg-bx-green'
+                      ? 'bg-accent'
                       : bx.state.status === 'error'
                         ? 'bg-bx-red'
                         : 'bg-bx-muted'
@@ -292,7 +292,7 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
                 <span
                   className={`text-[11px] ${
                     bx.state.status === 'connected' && bx.state.lastSyncedAt != null && Date.now() - bx.state.lastSyncedAt > 5 * 60_000
-                      ? 'text-bx-yellow'
+                      ? 'text-amber-400'
                       : 'text-bx-muted'
                   }`}
                   title={
@@ -313,7 +313,7 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
             <PortfolioSettingsMenu active={active} onOpenApiSettings={() => setSettingsOpen(true)} />
             <button
               type="button"
-              className="app-no-drag rounded-lg bg-bx-yellow px-3 py-2 text-label font-semibold text-bx-add-fg hover:opacity-95"
+              className="app-no-drag rounded-lg border border-accent/50 bg-accent/[0.14] px-3 py-2 text-label font-semibold text-accent transition-colors hover:bg-accent/20"
               onClick={() => setOpen(true)}
             >
               Add
@@ -388,7 +388,7 @@ export function PortfolioDashboard({ active, embedded = false }: Props) {
             <p className="mt-1 text-label text-bx-secondary">Add your first futures position to track unrealized PnL.</p>
             <button
               type="button"
-              className="mt-3 app-no-drag rounded-lg bg-bx-yellow px-3 py-2 text-label font-semibold text-bx-add-fg hover:opacity-95"
+              className="mt-3 app-no-drag rounded-lg border border-accent/50 bg-accent/[0.14] px-3 py-2 text-label font-semibold text-accent transition-colors hover:bg-accent/20"
               onClick={() => setOpen(true)}
             >
               Add position

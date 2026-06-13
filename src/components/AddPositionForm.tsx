@@ -202,7 +202,7 @@ export const AddPositionForm = memo(function AddPositionForm({ onSubmit, onCance
         </button>
         <button
           type="submit"
-          className="app-no-drag rounded-lg bg-bx-yellow px-3 py-2 text-label font-semibold text-bx-add-fg hover:opacity-95 disabled:opacity-60"
+          className="app-no-drag rounded-lg bg-accent px-3 py-2 text-label font-semibold text-bx-add-fg hover:opacity-95 disabled:opacity-60"
           disabled={!valid}
         >
           Add
